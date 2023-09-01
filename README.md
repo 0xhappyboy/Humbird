@@ -12,4 +12,4 @@ the high-performance server,Let network transmission be like hummingbird flappin
 8. look forward to more....
 
 ## Logo
-![Humbird](https://github.com/0xhappyboy/humbird/blob/main/assets/logo.jpg "Humbird Server")
+![Humbird](https://github.com/0xhappyboy/humbird/blob/main/assets/imgs/logo.jpg "Humbird Server")
