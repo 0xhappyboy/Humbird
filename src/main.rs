@@ -1,9 +1,10 @@
 mod config;
-mod net;
-use net::server::*;
+mod server;
+
+use server::server::*;
 use tokio::join;
 
 #[tokio::main]
 async fn main() {
-    join!(HttpServer::run());
+    join!(Server::run());
 }
