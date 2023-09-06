@@ -1,10 +1,6 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
-struct Signal{
+struct Signal {}
 
-}
-
-impl Signal {
-    
-}
+impl Signal {}

@@ -4,14 +4,13 @@ use crate::config::config::*;
 
 use regex::Regex;
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncBufReadExt, BufReader},
     join,
     net::{
         tcp::{OwnedReadHalf, OwnedWriteHalf},
-        TcpListener, TcpStream,
+        TcpListener,
     },
 };
-use tracing::error;
 
 use super::http::Http;
 
@@ -44,6 +43,7 @@ async fn handle_tcp(r: OwnedReadHalf, w: OwnedWriteHalf) {
             Ok(_n) => {
                 let c = req_str_buf.drain(..).as_str().to_string();
                 if is_http_protocol(c.clone()) {
+                    // build http
                     let mut http = Http::New(c, r_buf, w).await;
                     // respose
                     join!(http.response());
