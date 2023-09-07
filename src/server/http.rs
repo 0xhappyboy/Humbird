@@ -1,14 +1,22 @@
-use std::{fs, path::Path};
+use std::{collections::HashMap, fs, io::Error, path::Path};
 
+use serde::de;
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     join,
     net::tcp::{OwnedReadHalf, OwnedWriteHalf},
 };
 
 use crate::config::config::ROOT_PATH;
 
-/// http protocol method encapsulation
+// delimiter
+#[derive(Debug)]
+pub enum Delimiter {
+    HEAD,
+    BODY,
+}
+
+// http protocol method encapsulation
 #[derive(Debug)]
 pub enum Method {
     GET(String),
@@ -27,54 +35,71 @@ impl Method {
     }
 }
 
-/// encapsulation of header information structure
-#[derive(Debug)]
-pub struct Header {
-    pub k: String,
-    pub v: String,
-}
-
-/// generic request wrapper
-#[derive(Debug)]
+// generic request wrapper
+#[derive(Debug, PartialEq, Eq)]
 pub struct Request {
-    pub header: Vec<Header>,
+    pub cookie: Vec<(String, String)>,
+    pub header: Vec<(String, String)>,
+    pub body: Vec<u8>,
 }
 
 impl Request {
+    pub fn new() -> Request {
+        Request {
+            cookie: vec![],
+            header: vec![],
+            body: vec![],
+        }
+    }
     pub fn push_header(&mut self, item: String) {
         let item_split: Vec<&str> = item.split(":").collect();
-        self.header.push(Header {
-            k: item_split[0].to_string(),
-            v: item_split[1].to_string(),
-        });
+        self.header.push((
+            item_split[0].trim().to_string(),
+            item_split[1]
+                .trim()
+                .to_string()
+                .chars()
+                .into_iter()
+                .filter(|c| !c.eq(&'\r') && !c.eq(&'\n'))
+                .collect(),
+        ));
     }
-    pub fn to_string(&mut self) -> String {
-        self.header.iter();
-        String::from("")
+    pub fn hander_map(&self) -> HashMap<String, String> {
+        let map: HashMap<String, String> = self.header.clone().into_iter().collect();
+        map
     }
 }
 
-/// generic response wrapper
+// generic response wrapper
 #[derive(Debug)]
 pub struct Response {
-    pub header: Vec<Header>,
+    pub header: Vec<(String, String)>,
 }
 
 impl Response {
+    pub fn new() -> Response {
+        Response { header: vec![] }
+    }
     pub fn push_header(&mut self, item: String) {
         let item_split: Vec<&str> = item.split(":").collect();
-        self.header.push(Header {
-            k: item_split[0].to_string(),
-            v: item_split[1].to_string(),
-        });
+        self.header.push((
+            item_split[0].trim().to_string(),
+            item_split[1]
+                .trim()
+                .to_string()
+                .chars()
+                .into_iter()
+                .filter(|c| !c.eq(&'\r') && !c.eq(&'\n'))
+                .collect(),
+        ));
     }
-    pub fn to_string(&mut self) -> String {
-        self.header.iter();
-        String::from("")
+    pub fn hander_map(&self) -> HashMap<String, String> {
+        let map: HashMap<String, String> = self.header.clone().into_iter().collect();
+        map
     }
 }
 
-/// overall encapsulation of http protocol packets
+// overall encapsulation of http protocol packets
 #[derive(Debug)]
 pub struct Http {
     pub method: Method,
@@ -86,39 +111,85 @@ pub struct Http {
 }
 
 impl Http {
-    pub async fn New(c: String, mut r_buf: BufReader<OwnedReadHalf>, w: OwnedWriteHalf) -> Http {
+    pub async fn new(c: String, mut r_buf: BufReader<OwnedReadHalf>, w: OwnedWriteHalf) -> Http {
         let items: Vec<&str> = c.split(" ").collect();
         let mut http = Http {
             w: w,
             method: Method::new(items[0]),
             path: items[1].to_string(),
             protocol: items[2].to_string().replace("\r\n", ""),
-            request: Request { header: vec![] },
-            response: Response { header: vec![] },
+            request: Request::new(),
+            response: Response::new(),
         };
         let mut req_str_buf = String::new();
+        let mut delimiter = Delimiter::HEAD;
         loop {
-            match r_buf.read_line(&mut req_str_buf).await {
-                Ok(0) => {
-                    break;
+            match delimiter {
+                Delimiter::HEAD => {
+                    // handle head
+                    match r_buf.read_line(&mut req_str_buf).await {
+                        Ok(0) => {
+                            // end
+                            break;
+                        }
+                        Ok(_n) => {
+                            let c = req_str_buf.drain(..).as_str().to_string();
+                            if c.eq("\r\n") {
+                                delimiter = Delimiter::BODY;
+                                continue;
+                            };
+                            // push request header
+                            http.request.push_header(c);
+                        }
+                        Err(_) => {
+                            // error
+                            break;
+                        }
+                    }
                 }
-                Ok(_n) => {
-                    let c = req_str_buf.drain(..).as_str().to_string();
-                    if c.eq("\r\n") {
-                        break;
-                    };
-                    // push request header
-                    http.request.push_header(c);
-                }
-                Err(_) => {
-                    break;
+                Delimiter::BODY => {
+                    match http.method {
+                        Method::POST(_) => {
+                            let mut buf = vec![
+                                0u8;
+                                http.get_head_info("Content-Length")
+                                    .unwrap()
+                                    .parse::<u64>()
+                                    .unwrap()
+                                    .try_into()
+                                    .unwrap()
+                            ];
+                            match r_buf.read(&mut buf).await {
+                                Ok(0) => {
+                                    // TODO
+                                    break;
+                                }
+                                Ok(s) => {
+                                    // TODO
+                                    // save request body
+                                    http.request.body = buf;
+                                    break;
+                                }
+                                Err(_) => {
+                                    // TODO
+                                    break;
+                                }
+                            }
+                        }
+                        Method::GET(_) => {
+                            break;
+                        }
+                    }
                 }
             }
         }
         http
     }
 
-    /// response
+    // handle request body
+    fn handle_request_body(&mut self) {}
+
+    // response
     pub async fn response(&mut self) {
         match self.method {
             Method::GET(_) => {
@@ -154,5 +225,26 @@ impl Http {
         }
     }
     // handle post method response
-    async fn handle_post_response(&mut self) {}
+    async fn handle_post_response(&mut self) {
+        let c = format!("response test");
+        let res = format!(
+            "HTTP/1.1 200 OK \r\nContent-Length:{} \r\n\r\n{}\r\n",
+            c.len(),
+            c
+        );
+        let _ = self.w.write_all(res.as_bytes()).await;
+    }
+
+    // get head info
+    fn get_head_info(&self, k: &str) -> Option<String> {
+        let h_map = self.request.hander_map();
+        if h_map.is_empty() {
+            return None;
+        }
+        if !h_map.contains_key(k) {
+            return None;
+        }
+        let v = self.request.hander_map().get(k).unwrap().to_string();
+        Some(v)
+    }
 }

@@ -1,4 +1,4 @@
-use std::{fs, path};
+use std::{fs, os::fd::AsFd, path};
 
 use crate::config::config::*;
 
@@ -44,7 +44,7 @@ async fn handle_tcp(r: OwnedReadHalf, w: OwnedWriteHalf) {
                 let c = req_str_buf.drain(..).as_str().to_string();
                 if is_http_protocol(c.clone()) {
                     // build http
-                    let mut http = Http::New(c, r_buf, w).await;
+                    let mut http = Http::new(c, r_buf, w).await;
                     // respose
                     join!(http.response());
                     break;
