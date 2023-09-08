@@ -1,14 +1,13 @@
-use std::{collections::HashMap, fs, io::Error, path::Path};
+use std::{collections::HashMap, fs, path::Path};
 
-use serde::de;
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
-    join,
     net::tcp::{OwnedReadHalf, OwnedWriteHalf},
+    task,
 };
+use tracing::{event, info, instrument, Level};
 
 use crate::config::config::ROOT_PATH;
-use super::mime::*;
 
 // delimiter
 #[derive(Debug)]
@@ -112,6 +111,7 @@ pub struct Http {
 }
 
 impl Http {
+    #[instrument]
     pub async fn new(c: String, mut r_buf: BufReader<OwnedReadHalf>, w: OwnedWriteHalf) -> Http {
         let items: Vec<&str> = c.split(" ").collect();
         let mut http = Http {
@@ -139,6 +139,7 @@ impl Http {
                                 delimiter = Delimiter::BODY;
                                 continue;
                             };
+                            info!("test 123");
                             // push request header
                             http.request.push_header(c);
                         }
@@ -191,13 +192,17 @@ impl Http {
     fn handle_request_body(&mut self) {}
 
     // response
-    pub async fn response(&mut self) {
+    pub async fn response(mut self) {
         match self.method {
             Method::GET(_) => {
-                join!(self.handle_get_response());
+                task::spawn(async move {
+                    self.handle_get_response().await;
+                });
             }
             Method::POST(_) => {
-                join!(self.handle_post_response());
+                task::spawn(async move {
+                    self.handle_post_response().await;
+                });
             }
         }
     }

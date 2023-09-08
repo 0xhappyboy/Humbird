@@ -1,16 +1,15 @@
-use std::{fs, path};
-
 use crate::config::config::*;
 
 use regex::Regex;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
-    join,
     net::{
         tcp::{OwnedReadHalf, OwnedWriteHalf},
         TcpListener,
     },
+    task,
 };
+use tracing::{info, instrument};
 
 use crate::protocol::http::http::*;
 
@@ -18,20 +17,22 @@ pub struct Server {}
 
 impl Server {
     pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+        // tcp listener
         let l = TcpListener::bind(format!("{}:{}", SERVER_LISTENING_ADDR, unsafe {
             SERVER_LISTENING_PORT
         }))
         .await?;
         loop {
-            let (mut stream, _socket) = l.accept().await?;
+            let (stream, socket) = l.accept().await?;
+            info!("new visitor,ip:{}", socket.ip());
             let (r, w) = stream.into_split();
-            join!(handle_tcp(r, w));
+            task::spawn(handle_tcp(r, w));
         }
-        Ok(())
     }
 }
 
 /// handle tcp message
+#[instrument]
 async fn handle_tcp(r: OwnedReadHalf, w: OwnedWriteHalf) {
     let mut req_str_buf = String::new();
     let mut r_buf: BufReader<OwnedReadHalf> = BufReader::new(r);
@@ -44,9 +45,9 @@ async fn handle_tcp(r: OwnedReadHalf, w: OwnedWriteHalf) {
                 let c = req_str_buf.drain(..).as_str().to_string();
                 if is_http_protocol(c.clone()) {
                     // build http
-                    let mut http = Http::new(c, r_buf, w).await;
+                    let http = Http::new(c, r_buf, w).await;
                     // respose
-                    join!(http.response());
+                    task::spawn(http.response());
                     break;
                 } else if c.eq("\r\n") {
                     break;
