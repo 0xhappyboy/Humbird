@@ -1,7 +1,7 @@
 mod cli;
-use crate::cli::cli::Cli;
 use chrono::Local;
 use clap::Parser;
+use cli::info::print_info;
 use humbird::config::config::Config;
 use humbird::server::server::Server;
 use std::io;
@@ -9,6 +9,7 @@ use tracing::Level;
 use tracing_subscriber::fmt::{format::Writer, time::FormatTime};
 
 fn main() {
+    print_info();
     // config file init,load
     Config::new("".to_string());
     // log init
