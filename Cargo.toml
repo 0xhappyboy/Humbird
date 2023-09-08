@@ -1,2 +1,2 @@
 [workspace]
-members = ["humbird-bin", "humbird-lib"]
+members = ["humbird", "bin"]

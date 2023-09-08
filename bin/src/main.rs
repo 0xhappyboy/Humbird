@@ -1,7 +1,7 @@
 mod cli;
 use crate::cli::cli::Cli;
 use clap::Parser;
-use humbird_lib::server::server::*;
+use humbird::server::server::*;
 use tokio::join;
 
 #[tokio::main]
