@@ -8,6 +8,7 @@ use tokio::{
 };
 
 use crate::config::config::ROOT_PATH;
+use super::mime::*;
 
 // delimiter
 #[derive(Debug)]
@@ -164,7 +165,7 @@ impl Http {
                                     // TODO
                                     break;
                                 }
-                                Ok(s) => {
+                                Ok(_s) => {
                                     // TODO
                                     // save request body
                                     http.request.body = buf;

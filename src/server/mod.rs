@@ -1,3 +1,3 @@
-pub mod http;
 pub mod server;
-pub mod signal;
+mod signal;
+mod protocol;
