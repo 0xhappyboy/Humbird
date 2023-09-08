@@ -1,0 +1,10 @@
+[package]
+name = "humbird-bin"
+version = "0.1.0"
+edition = "2021"
+authors = ["happyboy"]
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+clap = { version = "4.4.1", features = ["derive"] }
+humbird-lib = { path = "../humbird-lib" }

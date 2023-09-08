@@ -199,16 +199,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "443144c8cdadd93ebf52ddb4056d257f5b52c04d3c804e657d19eb73fc33668b"
 
 [[package]]
-name = "humbird-bin"
-version = "0.1.0"
-dependencies = [
- "clap",
- "humbird-lib",
- "tokio",
-]
-
-[[package]]
-name = "humbird-lib"
+name = "humbird"
 version = "0.1.0"
 dependencies = [
  "clap",
