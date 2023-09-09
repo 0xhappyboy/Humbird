@@ -1,4 +1,5 @@
-use crate::config::config::*;
+/// core network service module, providing core network functions
+use crate::{boot_output, config::config::*, async_exe};
 
 use regex::Regex;
 use tokio::{
@@ -13,25 +14,51 @@ use tracing::{info, instrument};
 
 use crate::protocol::http::http::*;
 
+/// used to start services, requires asynchronous runtime
+///
+/// Example
+/// ```rust
+/// run!();
+/// ```
+#[macro_export]
+macro_rules! run {
+    () => {
+        use $crate::core::server::Server;
+        Server::start().await;
+    };
+}
+
 pub struct Server {}
 
 impl Server {
+    /// used to start services, requires asynchronous runtime
+    ///
+    /// Example
+    /// ```rust
+    /// Server::start();
+    /// ```
     pub async fn start() -> Result<(), Box<dyn std::error::Error>> {
         // tcp listener
         let l = TcpListener::bind(format!("{}:{}", SERVER_LISTENING_ADDR, unsafe {
             SERVER_LISTENING_PORT
         }))
         .await?;
+        boot_output!();
         loop {
             let (stream, socket) = l.accept().await?;
             info!("new visitor,ip:{}", socket.ip());
             let (r, w) = stream.into_split();
-            task::spawn(handle_tcp(r, w));
+            async_exe!(handle_tcp(r, w));
         }
     }
 }
 
 /// handle tcp message
+///
+/// Example
+/// ```rust
+/// Server::start();
+/// ```
 #[instrument]
 async fn handle_tcp(r: OwnedReadHalf, w: OwnedWriteHalf) {
     let mut req_str_buf = String::new();

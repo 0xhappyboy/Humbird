@@ -21,6 +21,12 @@ pub enum Delimiter {
 pub enum Method {
     GET(String),
     POST(String),
+    HEAD(String),
+    PUT(String),
+    DELETE(String),
+    CONNECT(String),
+    OPTIONS(String),
+    TRACE(String),
 }
 
 impl Method {
@@ -122,69 +128,7 @@ impl Http {
             request: Request::new(),
             response: Response::new(),
         };
-        let mut req_str_buf = String::new();
-        let mut delimiter = Delimiter::HEAD;
-        loop {
-            match delimiter {
-                Delimiter::HEAD => {
-                    // handle head
-                    match r_buf.read_line(&mut req_str_buf).await {
-                        Ok(0) => {
-                            // end
-                            break;
-                        }
-                        Ok(_n) => {
-                            let c = req_str_buf.drain(..).as_str().to_string();
-                            if c.eq("\r\n") {
-                                delimiter = Delimiter::BODY;
-                                continue;
-                            };
-                            info!("test 123");
-                            // push request header
-                            http.request.push_header(c);
-                        }
-                        Err(_) => {
-                            // error
-                            break;
-                        }
-                    }
-                }
-                Delimiter::BODY => {
-                    match http.method {
-                        Method::POST(_) => {
-                            let mut buf = vec![
-                                0u8;
-                                http.get_head_info("Content-Length")
-                                    .unwrap()
-                                    .parse::<u64>()
-                                    .unwrap()
-                                    .try_into()
-                                    .unwrap()
-                            ];
-                            match r_buf.read(&mut buf).await {
-                                Ok(0) => {
-                                    // TODO
-                                    break;
-                                }
-                                Ok(_s) => {
-                                    // TODO
-                                    // save request body
-                                    http.request.body = buf;
-                                    break;
-                                }
-                                Err(_) => {
-                                    // TODO
-                                    break;
-                                }
-                            }
-                        }
-                        Method::GET(_) => {
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+        http.parse(r_buf).await;
         http
     }
 
@@ -203,6 +147,24 @@ impl Http {
                 task::spawn(async move {
                     self.handle_post_response().await;
                 });
+            }
+            Method::HEAD(_) => {
+                //TODO
+            }
+            Method::PUT(_) => {
+                //TODO
+            }
+            Method::DELETE(_) => {
+                //TODO
+            }
+            Method::CONNECT(_) => {
+                //TODO
+            }
+            Method::OPTIONS(_) => {
+                //TODO
+            }
+            Method::TRACE(_) => {
+                //TODO
             }
         }
     }
@@ -242,7 +204,7 @@ impl Http {
     }
 
     // get head info
-    fn get_head_info(&self, k: &str) -> Option<String> {
+    pub fn get_head_info(&self, k: &str) -> Option<String> {
         let h_map = self.request.hander_map();
         if h_map.is_empty() {
             return None;
@@ -252,5 +214,88 @@ impl Http {
         }
         let v = self.request.hander_map().get(k).unwrap().to_string();
         Some(v)
+    }
+
+    pub async fn parse(&mut self, mut r_buf: BufReader<OwnedReadHalf>) {
+        let mut req_str_buf = String::new();
+        let mut delimiter = Delimiter::HEAD;
+        loop {
+            match delimiter {
+                Delimiter::HEAD => {
+                    // handle head
+                    match r_buf.read_line(&mut req_str_buf).await {
+                        Ok(0) => {
+                            // end
+                            break;
+                        }
+                        Ok(_n) => {
+                            let c = req_str_buf.drain(..).as_str().to_string();
+                            if c.eq("\r\n") {
+                                delimiter = Delimiter::BODY;
+                                continue;
+                            };
+                            // push request header
+                            self.request.push_header(c);
+                        }
+                        Err(_) => {
+                            // error
+                            break;
+                        }
+                    }
+                }
+                Delimiter::BODY => {
+                    match self.method {
+                        Method::POST(_) => {
+                            let mut buf = vec![
+                                0u8;
+                                self.get_head_info("Content-Length")
+                                    .unwrap()
+                                    .parse::<u64>()
+                                    .unwrap()
+                                    .try_into()
+                                    .unwrap()
+                            ];
+                            match r_buf.read(&mut buf).await {
+                                Ok(0) => {
+                                    // TODO
+                                    break;
+                                }
+                                Ok(_s) => {
+                                    // TODO
+                                    // save request body
+                                    self.request.body = buf;
+                                    break;
+                                }
+                                Err(_) => {
+                                    // TODO
+                                    break;
+                                }
+                            }
+                        }
+                        Method::GET(_) => { 
+                            break;
+                        }
+                        Method::HEAD(_) => {
+                            //TODO
+                        }
+                        Method::PUT(_) => {
+                            //TODO
+                        }
+                        Method::DELETE(_) => {
+                            //TODO
+                        }
+                        Method::CONNECT(_) => {
+                            //TODO
+                        }
+                        Method::OPTIONS(_) => {
+                            //TODO
+                        }
+                        Method::TRACE(_) => {
+                            //TODO
+                        }
+                    }
+                }
+            }
+        }
     }
 }
