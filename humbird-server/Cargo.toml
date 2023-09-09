@@ -1,19 +1,15 @@
 [package]
 authors = ["happyboy"]
-description = "universal server function wrapper library"
+description = "a server based on humbird library"
 edition = "2021"
-name = "humbird"
+name = "humbird-server"
 version = "0.1.0"
 
-[lib]
-bench = true
-name = "humbird"
-
 [dependencies]
+chrono = "0.4.30"
 clap = {version = "4.4.1", features = ["derive"]}
-regex = "1.9.4"
-serde = {version = "1.0", features = ["derive"]}
+humbird = {path = "../humbird"}
 tokio = {version = "1", features = ["full"]}
-toml = "0.7.6"
 tracing = "0.1.37"
+tracing-appender = "0.2.2"
 tracing-subscriber = "0.3"

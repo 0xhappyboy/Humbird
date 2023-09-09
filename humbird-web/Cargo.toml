@@ -1,0 +1,14 @@
+[package]
+authors = ["happyboy"]
+description = "humbird web library"
+edition = "2021"
+name = "humbird-web"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+proc-macro = true
+
+[dependencies]
+humbird = {version = "0.1.0", path = "../humbird"}

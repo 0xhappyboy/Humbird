@@ -16,7 +16,7 @@ use crate::protocol::http::http::*;
 pub struct Server {}
 
 impl Server {
-    pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn start() -> Result<(), Box<dyn std::error::Error>> {
         // tcp listener
         let l = TcpListener::bind(format!("{}:{}", SERVER_LISTENING_ADDR, unsafe {
             SERVER_LISTENING_PORT
