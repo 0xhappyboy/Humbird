@@ -278,6 +278,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "humbird-examples"
+version = "0.1.0"
+
+[[package]]
 name = "humbird-server"
 version = "0.1.0"
 dependencies = [
@@ -291,11 +295,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "humbird-web"
+name = "humbird-test"
 version = "0.1.0"
-dependencies = [
- "humbird",
-]
 
 [[package]]
 name = "iana-time-zone"

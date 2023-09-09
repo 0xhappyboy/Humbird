@@ -1,2 +1,7 @@
 [workspace]
-members = ["humbird", "humbird-server", "humbird-web"]
+members = [
+    "humbird", 
+    "humbird-server", 
+    "humbird-test", 
+    "humbird-examples", 
+    ]
