@@ -1,0 +1,10 @@
+[package]
+authors = ["happyboy"]
+description = "universal server function wrapper library"
+edition = "2021"
+name = "humbird-plugins"
+version = "0.1.0"
+
+[lib]
+crate-type = ["dylib"]
+name = "humbird-plugin"

@@ -1,0 +1,1 @@
+humbird server plug-in standard scaffolding,allow users to write custom plug-ins

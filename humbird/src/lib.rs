@@ -5,8 +5,6 @@ pub mod config;
 pub mod core;
 /// this module encapsulates some commonly used utility macros
 pub mod macros;
-///this module is used to handle humbird plugins
-pub mod plugins;
 /// this module provides network protocol abstraction
 pub mod protocol;
 /// this module is used for network proxy functions

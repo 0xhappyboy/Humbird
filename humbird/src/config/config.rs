@@ -17,6 +17,12 @@ pub struct Server {
     plugins: Option<String>,
 }
 
+/// plugins manage
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+pub struct Plugins {
+    path: Option<Vec<String>>,
+}
+
 pub fn load_config(path: String) {
     let file = fs::File::open(path);
     match file {
