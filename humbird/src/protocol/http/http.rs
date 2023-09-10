@@ -1,16 +1,11 @@
-use std::{collections::HashMap, fs, io::Error, path::Path};
-
 use regex::Regex;
 use tokio::{
-    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
+    io::{AsyncWriteExt, BufReader},
     net::tcp::{OwnedReadHalf, OwnedWriteHalf},
-    task,
 };
-use tracing::{error, event, info, instrument, Level};
+use tracing::{error, instrument};
 
-use crate::{async_exe, config::config::ROOT_PATH};
-
-use super::{method::Method, request::Request, response::Response};
+use super::{request::Request, response::Response};
 
 // overall encapsulation of http protocol packets
 #[derive(Debug)]
@@ -31,11 +26,11 @@ impl Http {
             return Err("http request processing failed".to_string());
         }
         match Request::new(request_line, r).await {
-            Ok(req) => {
-                let response = Response::new(&req).await;
-                let mut http = Http {
+            Ok(request) => {
+                let response = Response::new(&request).await;
+                let http = Http {
                     w: w,
-                    request: req,
+                    request: request,
                     response: response,
                 };
                 return Ok(http);

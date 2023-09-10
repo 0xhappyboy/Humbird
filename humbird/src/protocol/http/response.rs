@@ -1,13 +1,8 @@
 use std::{collections::HashMap, fs, path::Path};
 
-use tokio::{io::AsyncWriteExt, net::tcp::OwnedWriteHalf};
-
 use crate::config::config::ROOT_PATH;
 
-use super::{
-    method::Method,
-    request::{self, Request},
-};
+use super::{method::Method, request::Request};
 
 // generic response wrapper
 #[derive(Debug)]

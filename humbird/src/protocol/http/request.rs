@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::Error};
+use std::collections::HashMap;
 
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, BufReader},
