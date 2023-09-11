@@ -19,7 +19,6 @@ pub struct Http {
 impl Http {
     #[instrument]
     pub async fn new(
-        &mut self,
         request_line: String,
         r: BufReader<OwnedReadHalf>,
         w: OwnedWriteHalf,
@@ -29,17 +28,17 @@ impl Http {
         }
         match Request::new(request_line, r).await {
             Ok(request) => {
-                let mut response = Response::new(&request);
+                let response = Response::new(&request);
                 let mut http = Http {
                     w: w,
                     request: request,
                     response: response,
                 };
                 // exec plugin
-                self.exec_plugin();
+                http.exec_plugin();
                 return Ok(http);
             }
-            Err(e) => {
+            Err(_e) => {
                 error!("http request processing failed");
                 return Err("http request processing failed".to_string());
             }
@@ -55,7 +54,11 @@ impl Http {
         re.is_match(&c)
     }
     /// execute plugin
-    fn exec_plugin(&self) {
-        ROUTER_TABLE.lock().unwrap().get(&self.request.path).unwrap()(self.request,self.response);
+    fn exec_plugin(&mut self) {
+        ROUTER_TABLE
+            .lock()
+            .unwrap()
+            .get(&self.request.path)
+            .unwrap()(self.request.clone(), self.response.clone());
     }
 }

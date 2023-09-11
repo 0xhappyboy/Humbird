@@ -10,6 +10,15 @@ lazy_static! {
     };
 }
 
+/// macro for registering web routes,work before starting humbird service
+/// 
+/// Example
+/// ```rust
+/// // register plugin
+/// register_router_plugin!("/path".to_string() => function_name);
+/// // run humbird server
+/// run!();
+/// ```
 #[macro_export]
 macro_rules! register_router_plugin {
     ($($path:expr => $process:expr),*) => {

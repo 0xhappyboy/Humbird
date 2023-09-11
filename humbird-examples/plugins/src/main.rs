@@ -10,9 +10,7 @@ fn test(mut request: Request, mut response: Response) -> Response {
 
 fn main() {
     // register plugin
-    register_router_plugin!(
-        "/test".to_string()=>test
-    );
+    register_router_plugin!("/test".to_string() => test);
     // run humbird server
     run!();
 }
