@@ -156,13 +156,14 @@ pub fn boot_info_string() -> String {
 ░  ░  ░   ░            ░    ░       ░     ░        ░    
                                      ░               ░";
     let mut table = Table::new();
-    table.add_row(row!["Name", "Version", "Author", "Slogan", "Github"]);
+    table.add_row(row!["Name", "Version", "Author", "Slogan", "Github","Status"]);
     table.add_row(row![
         "🐦Humbird",
         "v0.1.0",
         "HappyBoy🎈",
         "You know,for faster",
-        "0xhappyboy"
+        "0xhappyboy",
+        "✅"
     ]);
     format!("{}\n{}", logo, table.to_string())
 }
