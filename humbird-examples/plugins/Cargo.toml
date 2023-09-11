@@ -1,0 +1,7 @@
+[package]
+name = "plugins"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+humbird = {version = "0.1.0",path = "../../humbird"}

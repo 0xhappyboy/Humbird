@@ -3,5 +3,5 @@ members = [
     "humbird", 
     "humbird-server", 
     "humbird-test", 
-    "humbird-examples", 
+    "humbird-examples/plugins", 
     ]

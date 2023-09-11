@@ -15,13 +15,13 @@ pub enum Delimiter {
 }
 
 // generic request wrapper
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Request {
     pub method: Method,
     pub path: String,
     pub protocol: String,
     pub cookie: Vec<(String, String)>,
-    pub header: Vec<(String, String)>,
+    pub hand: Vec<(String, String)>,
     pub body: Vec<u8>,
 }
 
@@ -35,7 +35,7 @@ impl Request {
             path: items[1].to_string(),
             protocol: items[2].to_string().replace("\r\n", ""),
             cookie: Vec::new(),
-            header: Vec::new(),
+            hand: Vec::new(),
             body: Vec::new(),
         };
         loop {
@@ -123,7 +123,7 @@ impl Request {
     }
     pub fn push_header(&mut self, item: String) {
         let item_split: Vec<&str> = item.split(":").collect();
-        self.header.push((
+        self.hand.push((
             item_split[0].trim().to_string(),
             item_split[1]
                 .trim()
@@ -134,21 +134,21 @@ impl Request {
                 .collect(),
         ));
     }
-    /// get all request header information in the form of map
-    pub fn hander_map(&self) -> HashMap<String, String> {
-        let map: HashMap<String, String> = self.header.clone().into_iter().collect();
+    /// get all request hand information in the form of map
+    pub fn hand_map(&self) -> HashMap<String, String> {
+        let map: HashMap<String, String> = self.hand.clone().into_iter().collect();
         map
     }
     /// get head info
     pub fn get_head_info(&self, k: &str) -> Option<String> {
-        let h_map = self.hander_map();
+        let h_map = self.hand_map();
         if h_map.is_empty() {
             return None;
         }
         if !h_map.contains_key(k) {
             return None;
         }
-        let v = self.hander_map().get(k).unwrap().to_string();
+        let v = self.hand_map().get(k).unwrap().to_string();
         Some(v)
     }
     /// convert request body structure to http protocol request structure string
@@ -164,4 +164,6 @@ impl Request {
     pub fn to_string(&self) -> &str {
         ""
     }
+    /// execute plugin
+    fn exec_plugin(&self) {}
 }

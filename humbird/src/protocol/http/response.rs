@@ -5,7 +5,7 @@ use crate::config::config::ROOT_PATH;
 use super::{method::Method, request::Request};
 
 // generic response wrapper
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct Response {
     pub header: Vec<(String, String)>,
     pub body: Vec<u8>,
@@ -14,7 +14,7 @@ pub struct Response {
 }
 
 impl Response {
-    pub async fn new(request: &Request) -> Response {
+    pub fn new(request: &Request) -> Response {
         let mut response = Response {
             req_method: request.method.clone(),
             req_path: request.path.clone(),
@@ -24,7 +24,7 @@ impl Response {
         response.handle_response();
         response
     }
-    pub fn hander_map(&self) -> HashMap<String, String> {
+    pub fn hand_map(&self) -> HashMap<String, String> {
         let map: HashMap<String, String> = self.header.clone().into_iter().collect();
         map
     }
@@ -101,4 +101,6 @@ impl Response {
         );
         self.body = res.as_bytes().to_vec()
     }
+    /// execute plugin
+    fn exec_plugin(&self) {}
 }

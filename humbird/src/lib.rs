@@ -9,3 +9,4 @@ pub mod macros;
 pub mod protocol;
 /// this module is used for network proxy functions
 pub mod proxy;
+pub mod plugins;

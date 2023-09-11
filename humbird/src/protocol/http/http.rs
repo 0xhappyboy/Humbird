@@ -27,8 +27,8 @@ impl Http {
         }
         match Request::new(request_line, r).await {
             Ok(request) => {
-                let response = Response::new(&request).await;
-                let http = Http {
+                let mut response = Response::new(&request);
+                let mut http = Http {
                     w: w,
                     request: request,
                     response: response,
@@ -50,4 +50,6 @@ impl Http {
         let re = Regex::new(r"^(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE)\s(([/0-9a-zA-Z.]+)?(\?[0-9a-zA-Z&=]+)?)\s(HTTP/1.0|HTTP/1.1|HTTP/2.0)\r\n$").unwrap();
         re.is_match(&c)
     }
+    /// execute plugin
+    fn exec_plugin(&self) {}
 }
