@@ -164,6 +164,4 @@ impl Request {
     pub fn to_string(&self) -> &str {
         ""
     }
-    /// execute plugin
-    fn exec_plugin(&self) {}
 }

@@ -101,6 +101,4 @@ impl Response {
         );
         self.body = res.as_bytes().to_vec()
     }
-    /// execute plugin
-    fn exec_plugin(&self) {}
 }

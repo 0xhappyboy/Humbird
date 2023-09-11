@@ -6,6 +6,7 @@ use tokio::{
 use tracing::{error, instrument};
 
 use super::{request::Request, response::Response};
+use crate::plugins::web::ROUTER_TABLE;
 
 // overall encapsulation of http protocol packets
 #[derive(Debug)]
@@ -18,6 +19,7 @@ pub struct Http {
 impl Http {
     #[instrument]
     pub async fn new(
+        &mut self,
         request_line: String,
         r: BufReader<OwnedReadHalf>,
         w: OwnedWriteHalf,
@@ -33,6 +35,8 @@ impl Http {
                     request: request,
                     response: response,
                 };
+                // exec plugin
+                self.exec_plugin();
                 return Ok(http);
             }
             Err(e) => {
@@ -51,5 +55,7 @@ impl Http {
         re.is_match(&c)
     }
     /// execute plugin
-    fn exec_plugin(&self) {}
+    fn exec_plugin(&self) {
+        ROUTER_TABLE.lock().unwrap().get(&self.request.path).unwrap()(self.request,self.response);
+    }
 }
