@@ -5,12 +5,13 @@ use crate::config::config::ROOT_PATH;
 use super::{method::Method, request::Request};
 
 // generic response wrapper
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct Response {
-    pub header: Vec<(String, String)>,
+    pub head: Vec<(String, String)>,
     pub body: Vec<u8>,
     req_method: Method,
     req_path: String,
+    raw: String,
 }
 
 impl Response {
@@ -18,25 +19,17 @@ impl Response {
         let mut response = Response {
             req_method: request.method.clone(),
             req_path: request.path.clone(),
-            header: vec![],
+            head: vec![],
             body: vec![],
+            raw: String::from(""),
         };
         response.handle_response();
         response
     }
     pub fn hand_map(&self) -> HashMap<String, String> {
-        let map: HashMap<String, String> = self.header.clone().into_iter().collect();
+        let map: HashMap<String, String> = self.head.clone().into_iter().collect();
         map
     }
-    /// convert response body structure to http protocol response structure string
-    ///
-    /// Example
-    /// ```
-    /// HTTP/1.1 200 OK \r\n
-    /// response head
-    /// \r\n\r\n
-    /// response body
-    /// ```
     fn handle_response(&mut self) {
         match self.req_method {
             Method::GET(_) => {

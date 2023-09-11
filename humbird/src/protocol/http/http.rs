@@ -55,10 +55,13 @@ impl Http {
     }
     /// execute plugin
     fn exec_plugin(&mut self) {
-        ROUTER_TABLE
-            .lock()
-            .unwrap()
-            .get(&self.request.path)
-            .unwrap()(self.request.clone(), self.response.clone());
+        match ROUTER_TABLE.lock() {
+            Ok(t) => {
+                if t.len() > 0 && t.contains_key(&self.request.path) {
+                    t.get(&self.request.path).unwrap()(self.request.clone(), self.response.clone());
+                }
+            }
+            Err(_) => {}
+        }
     }
 }

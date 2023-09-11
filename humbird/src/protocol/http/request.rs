@@ -23,6 +23,7 @@ pub struct Request {
     pub cookie: Vec<(String, String)>,
     pub hand: Vec<(String, String)>,
     pub body: Vec<u8>,
+    pub raw: String,
 }
 
 impl Request {
@@ -37,6 +38,7 @@ impl Request {
             cookie: Vec::new(),
             hand: Vec::new(),
             body: Vec::new(),
+            raw: String::from(""),
         };
         loop {
             match delimiter {
@@ -49,12 +51,13 @@ impl Request {
                         }
                         Ok(_n) => {
                             let c = req_str_buf.drain(..).as_str().to_string();
+                            req.raw.push_str(&c);
                             if c.eq("\r\n") {
                                 delimiter = Delimiter::BODY;
                                 continue;
                             };
-                            // push request header
-                            req.push_header(c);
+                            // push request head
+                            req.push_head(c);
                         }
                         Err(_) => {
                             // error
@@ -121,7 +124,7 @@ impl Request {
         }
         Ok(req)
     }
-    pub fn push_header(&mut self, item: String) {
+    pub fn push_head(&mut self, item: String) {
         let item_split: Vec<&str> = item.split(":").collect();
         self.hand.push((
             item_split[0].trim().to_string(),
@@ -162,6 +165,6 @@ impl Request {
     /// request body
     /// ```
     pub fn to_string(&self) -> &str {
-        ""
+        &self.raw
     }
 }
