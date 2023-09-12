@@ -11,8 +11,11 @@ pub static mut ROOT_PATH: &str = "";
 /// server config
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct Server {
+    /// localhost server address
     addr: Option<String>,
+    /// localhost listening port
     port: Option<u32>,
+    /// static resource root directory
     webapps: Option<String>,
     plugins: Option<String>,
 }
@@ -23,6 +26,21 @@ pub struct Plugins {
     path: Option<Vec<String>>,
 }
 
+/// proxy
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+pub struct Porxy {
+    /// poxy host address
+    ///
+    /// ```
+    /// [
+    /// ip:port,
+    /// ip:port,
+    /// ]
+    /// ```
+    host: Option<Vec<String>>,
+}
+
+/// load confin file
 pub fn load_config(path: String) {
     let file = fs::File::open(path);
     match file {

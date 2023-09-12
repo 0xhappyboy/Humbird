@@ -1,18 +1,13 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, default};
 
+use regex::Regex;
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, BufReader},
     net::tcp::OwnedReadHalf,
 };
+use tracing::instrument;
 
-use super::method::Method;
-
-// delimiter
-#[derive(Debug)]
-pub enum Delimiter {
-    HEAD,
-    BODY,
-}
+use super::{http::Delimiter, method::Method};
 
 // generic request wrapper
 #[derive(Debug, Clone)]
@@ -20,31 +15,42 @@ pub struct Request {
     pub method: Method,
     pub path: String,
     pub protocol: String,
-    pub cookie: Vec<(String, String)>,
-    pub hand: Vec<(String, String)>,
+    pub cookie: HashMap<String, String>,
+    pub head: HashMap<String, String>,
     pub body: Vec<u8>,
     pub raw: String,
 }
 
 impl Request {
-    pub async fn new(request_line: String, mut r: BufReader<OwnedReadHalf>) -> Result<Request, ()> {
-        let items: Vec<&str> = request_line.split(" ").collect();
+    #[instrument]
+    pub async fn new() -> Result<(), String> {
+        Ok(())
+    }
+    #[instrument]
+    pub async fn read(r: OwnedReadHalf) -> Result<Self, String> {
+        let mut protocol_line = String::default();
+        let mut r_buf: BufReader<OwnedReadHalf> = BufReader::new(r);
+        let _ = r_buf.read_line(&mut protocol_line).await;
+        if !Request::is(protocol_line.to_string()) {
+            return Err("http request processing failed".to_string());
+        }
+        let items: Vec<&str> = protocol_line.split(" ").collect();
         let mut req_str_buf = String::new();
         let mut delimiter = Delimiter::HEAD;
         let mut req = Request {
             method: Method::new(items[0]),
             path: items[1].to_string(),
             protocol: items[2].to_string().replace("\r\n", ""),
-            cookie: Vec::new(),
-            hand: Vec::new(),
+            cookie: HashMap::default(),
+            head: HashMap::default(),
             body: Vec::new(),
-            raw: String::from(""),
+            raw: String::from(protocol_line.clone()),
         };
         loop {
             match delimiter {
                 Delimiter::HEAD => {
                     // handle head
-                    match r.read_line(&mut req_str_buf).await {
+                    match r_buf.read_line(&mut req_str_buf).await {
                         Ok(0) => {
                             // end
                             break;
@@ -67,17 +73,18 @@ impl Request {
                 }
                 Delimiter::BODY => {
                     match req.method {
-                        Method::POST(_) => {
+                        Method::POST => {
                             let mut buf = vec![
                                 0u8;
-                                req.get_head_info("Content-Length")
+                                req.head
+                                    .get("Content-Length")
                                     .unwrap()
                                     .parse::<u64>()
                                     .unwrap()
                                     .try_into()
                                     .unwrap()
                             ];
-                            match r.read(&mut buf).await {
+                            match r_buf.read(&mut buf).await {
                                 Ok(0) => {
                                     // TODO
                                     break;
@@ -94,28 +101,28 @@ impl Request {
                                 }
                             }
                         }
-                        Method::GET(_) => {
+                        Method::GET => {
                             break;
                         }
-                        Method::HEAD(_) => {
+                        Method::HEAD => {
                             //TODO
                         }
-                        Method::PUT(_) => {
+                        Method::PUT => {
                             //TODO
                         }
-                        Method::DELETE(_) => {
+                        Method::DELETE => {
                             //TODO
                         }
-                        Method::CONNECT(_) => {
+                        Method::CONNECT => {
                             //TODO
                         }
-                        Method::OPTIONS(_) => {
+                        Method::OPTIONS => {
                             //TODO
                         }
-                        Method::TRACE(_) => {
+                        Method::TRACE => {
                             //TODO
                         }
-                        Method::DEFAULT(_) => {
+                        Method::DEFAULT => {
                             // TODO
                         }
                     }
@@ -126,33 +133,31 @@ impl Request {
     }
     pub fn push_head(&mut self, item: String) {
         let item_split: Vec<&str> = item.split(":").collect();
-        self.hand.push((
-            item_split[0].trim().to_string(),
-            item_split[1]
-                .trim()
+        if item_split.len() == 0 {
+            return;
+        }
+        let k = item_split[0].trim().to_string();
+        let v = item_split[1];
+        self.head.insert(
+            k.to_owned(),
+            v.trim()
                 .to_string()
                 .chars()
                 .into_iter()
                 .filter(|c| !c.eq(&'\r') && !c.eq(&'\n'))
                 .collect(),
-        ));
-    }
-    /// get all request hand information in the form of map
-    pub fn hand_map(&self) -> HashMap<String, String> {
-        let map: HashMap<String, String> = self.hand.clone().into_iter().collect();
-        map
-    }
-    /// get head info
-    pub fn get_head_info(&self, k: &str) -> Option<String> {
-        let h_map = self.hand_map();
-        if h_map.is_empty() {
-            return None;
+        );
+        // cookies
+        if k.clone().eq("Cookie") {
+            let cookies: Vec<&str> = v.split(";").collect();
+            let _ = cookies.iter().map(|&e| {
+                let cookie_split: Vec<&str> = e.split("=").collect();
+                if cookie_split.len() > 0 {
+                    self.cookie
+                        .insert(cookie_split[0].to_owned(), cookie_split[1].to_owned());
+                }
+            });
         }
-        if !h_map.contains_key(k) {
-            return None;
-        }
-        let v = self.hand_map().get(k).unwrap().to_string();
-        Some(v)
     }
     /// convert request body structure to http protocol request structure string
     ///
@@ -166,5 +171,10 @@ impl Request {
     /// ```
     pub fn to_string(&self) -> &str {
         &self.raw
+    }
+    /// determine whether it is an http request
+    pub fn is(r: String) -> bool {
+        let re = Regex::new(r"^(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE)\s(([/0-9a-zA-Z.]+)?(\?[0-9a-zA-Z&=]+)?)\s(HTTP/1.0|HTTP/1.1|HTTP/2.0)\r\n$").unwrap();
+        re.is_match(&r)
     }
 }

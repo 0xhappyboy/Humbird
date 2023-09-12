@@ -1,6 +1,7 @@
 use humbird::{
+    config::config::load_config,
     protocol::http::{request::Request, response::Response},
-  run, config::config::load_config,
+    run,
 };
 
 fn main() {

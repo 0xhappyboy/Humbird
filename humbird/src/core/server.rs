@@ -1,11 +1,11 @@
 /// core network service module, providing core network functions
-use crate::{async_exe, config::config::*};
+use crate::{async_exe, config::config::*, protocol::http::response::Response};
 
 use tokio::{
-    io::{AsyncBufReadExt, BufReader},
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     net::{
         tcp::{OwnedReadHalf, OwnedWriteHalf},
-        TcpListener,
+        TcpListener, TcpStream,
     },
     runtime::Runtime,
     task,
@@ -75,7 +75,6 @@ impl Server {
             }))
             .await
             .unwrap();
-            println!("{}", boot_info_string());
             loop {
                 let (stream, socket) = l.accept().await.unwrap();
                 info!("new visitor,ip:{}", socket.ip());
@@ -94,25 +93,12 @@ impl Server {
     #[instrument]
     async fn handle_tcp(r: OwnedReadHalf, w: OwnedWriteHalf) {
         let mut req_str_buf = String::new();
-        let mut r_buf: BufReader<OwnedReadHalf> = BufReader::new(r);
-        loop {
-            match r_buf.read_line(&mut req_str_buf).await {
-                Ok(0) => {
-                    break;
-                }
-                Ok(_n) => {
-                    let c = req_str_buf.drain(..).as_str().to_string();
-                    match Http::new(c, r_buf, w).await {
-                        Ok(http) => {
-                            // respose
-                            async_exe!(http.response());
-                        }
-                        Err(_) => {}
-                    }
-                    break;
-                }
-                Err(_) => {}
+        match Http::new(r, w).await {
+            Ok(http) => {
+                // respose
+                async_exe!(http.response());
             }
+            Err(_) => {}
         }
     }
 }
@@ -156,7 +142,9 @@ pub fn boot_info_string() -> String {
 ░  ░  ░   ░            ░    ░       ░     ░        ░    
                                      ░               ░";
     let mut table = Table::new();
-    table.add_row(row!["Name", "Version", "Author", "Slogan", "Github","Status"]);
+    table.add_row(row![
+        "Name", "Version", "Author", "Slogan", "Github", "Status"
+    ]);
     table.add_row(row![
         "🐦Humbird",
         "v0.1.0",
