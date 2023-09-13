@@ -6,8 +6,8 @@ use humbird::{
 
 fn main() {
     // load config
-    load_config("".to_string());
+    load_config("D:\\test\\a.toml".to_string());
     // cli
     //let cli = Cli::parse();
-    run!();
+    //run!();
 }

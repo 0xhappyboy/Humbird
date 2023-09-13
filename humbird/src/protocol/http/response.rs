@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs, hash::Hash, path::Path};
+use std::{collections::HashMap, fs, path::Path};
 
 use regex::Regex;
 use tokio::{
@@ -7,7 +7,7 @@ use tokio::{
 };
 use tracing::instrument;
 
-use crate::config::config::ROOT_PATH;
+use crate::core::server::ROOT_PATH;
 
 use super::{http::Delimiter, method::Method, request::Request};
 
@@ -43,7 +43,7 @@ impl Response {
         response
     }
     #[instrument]
-    pub async fn read(mut r: OwnedReadHalf) -> Result<Self, String> {
+    pub async fn read(r: OwnedReadHalf) -> Result<Self, String> {
         let mut protocol_line = String::default();
         let mut r_buf: BufReader<OwnedReadHalf> = BufReader::new(r);
         let _ = r_buf.read_line(&mut protocol_line).await;
@@ -120,7 +120,7 @@ impl Response {
                 }
             }
         }
-        Ok((response))
+        Ok(response)
     }
     fn handle_response(&mut self) {
         match self.req_method {

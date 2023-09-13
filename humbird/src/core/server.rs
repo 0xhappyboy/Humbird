@@ -1,6 +1,8 @@
 /// core network service module, providing core network functions
-use crate::{async_exe, config::config::*};
-
+use crate::async_exe;
+use crate::protocol::http::http::*;
+use chrono::Local;
+use std::io;
 use tokio::{
     net::{
         tcp::{OwnedReadHalf, OwnedWriteHalf},
@@ -9,15 +11,16 @@ use tokio::{
     runtime::Runtime,
     task,
 };
-use tracing::{info, instrument};
-
-use crate::protocol::http::http::*;
-
-use std::io;
-
-use chrono::Local;
 use tracing::Level;
+use tracing::{info, instrument};
 use tracing_subscriber::fmt::{format::Writer, time::FormatTime};
+
+/// server listening address
+pub const SERVER_LISTENING_ADDR: &'static str = "0.0.0.0";
+/// server listening port,default 9999
+pub static mut SERVER_LISTENING_PORT: &str = "";
+/// local static resources root path
+pub static mut ROOT_PATH: &str = "";
 
 /// used to start services, requires asynchronous runtime
 ///

@@ -1,5 +1,4 @@
 #[derive(Debug)]
-pub enum MIME {
-}
+pub enum MIME {}
 
 impl MIME {}

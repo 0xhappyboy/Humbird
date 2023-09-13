@@ -2,6 +2,9 @@ use tokio::{io::AsyncWriteExt, net::TcpStream};
 
 use crate::protocol::http::{request::Request, response::Response};
 
+/// proxy target host address list
+pub static mut PROXY_TARGET: Vec<String> = vec![];
+
 /// load balancing mode
 #[derive(Debug, Clone)]
 pub enum BalancingMode {

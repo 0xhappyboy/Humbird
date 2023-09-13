@@ -1,0 +1,9 @@
+[server]
+port = 9999
+
+[directory]
+root-path = ""
+
+[proxy]
+target = ["111", "2222", "33333"]
+mode = "WEIGHT"
