@@ -1,9 +1,15 @@
 [server]
-port = 9999
+# port
+port = "port"
 
 [directory]
+# local static resource path
 root-path = ""
 
 [proxy]
-target = ["111", "2222", "33333"]
+# target proxy host list
+target = ["0.0.0.0:80", "0.0.0.0:8080", "0.0.0.0:8888"]
+# WEIGHT : weight mode
+# RANDOM : random mode
+# POLLING : polling mode
 mode = "WEIGHT"

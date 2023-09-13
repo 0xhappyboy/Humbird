@@ -155,7 +155,7 @@ impl Response {
     }
     /// handle get method response
     fn handle_get_response(&mut self) {
-        let resource = format!("{}{}", unsafe { ROOT_PATH }, self.req_path);
+        let resource = format!("{}{}", ROOT_PATH.lock().unwrap(), self.req_path);
         let mut res: String = String::default();
         match fs::read_to_string(Path::new(&resource)) {
             Ok(c) => {

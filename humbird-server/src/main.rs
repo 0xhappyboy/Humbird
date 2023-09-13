@@ -1,13 +1,16 @@
+use clap::Parser;
+use cli::cli::Cli;
 use humbird::{
     config::config::load_config,
-    protocol::http::{request::Request, response::Response},
     run,
 };
 
+mod cli;
+
 fn main() {
     // load config
-    load_config("D:\\test\\a.toml".to_string());
+    load_config("/Users/max/GitProject/Humbird/humbird-server/src/config-template.toml".to_string());
     // cli
-    //let cli = Cli::parse();
-    //run!();
+    let cli = Cli::parse();
+    run!();
 }

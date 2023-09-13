@@ -2,7 +2,8 @@
 use crate::async_exe;
 use crate::protocol::http::http::*;
 use chrono::Local;
-use std::io;
+use lazy_static::lazy_static;
+use std::{io, sync::Mutex};
 use tokio::{
     net::{
         tcp::{OwnedReadHalf, OwnedWriteHalf},
@@ -14,13 +15,17 @@ use tokio::{
 use tracing::Level;
 use tracing::{info, instrument};
 use tracing_subscriber::fmt::{format::Writer, time::FormatTime};
-
 /// server listening address
 pub const SERVER_LISTENING_ADDR: &'static str = "0.0.0.0";
-/// server listening port,default 9999
-pub static mut SERVER_LISTENING_PORT: &str = "";
-/// local static resources root path
-pub static mut ROOT_PATH: &str = "";
+/// server listening default port
+pub const DEFAULT_SERVER_LISTENING_PORT: &'static str = "0.0.0.0";
+/// global constants related to services
+lazy_static! {
+   /// server listening port,default 9999
+   pub static ref SERVER_LISTENING_PORT: Mutex<String> = Mutex::new(String::from(DEFAULT_SERVER_LISTENING_PORT.to_string()));
+   /// local static resources root path
+   pub static ref ROOT_PATH: Mutex<String> = Mutex::new(String::default());
+}
 
 /// used to start services, requires asynchronous runtime
 ///
@@ -73,7 +78,7 @@ impl Server {
         self.rt.block_on(async {
             // tcp listener
             let l = TcpListener::bind(format!("{}:{}", SERVER_LISTENING_ADDR, unsafe {
-                SERVER_LISTENING_PORT
+                SERVER_LISTENING_PORT.lock().unwrap()
             }))
             .await
             .unwrap();
@@ -150,7 +155,7 @@ pub fn boot_info_string() -> String {
         "🐦Humbird",
         "v0.1.0",
         "HappyBoy🎈",
-        "You know,for faster",
+        "You Know, for Faster! ",
         "0xhappyboy",
         "✅"
     ]);

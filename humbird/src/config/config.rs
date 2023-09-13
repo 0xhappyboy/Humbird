@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
-use std::{fs, io::Read};
+use std::{fs, io::Read, sync::Arc};
 
-use crate::proxy::proxy::PROXY_TARGET;
-
-
+use crate::{
+    core::server::{ROOT_PATH, SERVER_LISTENING_PORT},
+    proxy::proxy::PROXY_TARGET,
+};
 
 /// server config
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
@@ -44,14 +45,41 @@ pub fn load_config(path: String) {
         Ok(mut f) => unsafe {
             let mut s_buf = String::default();
             let _ = f.read_to_string(&mut s_buf);
-            let config = s_buf.parse::<toml::Table>().unwrap();
+            let config = s_buf.parse::<toml::Table>().unwrap().clone();
             // server
-            // directory
-            // porxy
-            if config.contains_key("Porxy"){
-                if config["Porxy"].is_arr
+            if config.contains_key("server") {
+                match config["server"].get("port") {
+                    Some(p) => {
+                        SERVER_LISTENING_PORT.lock().unwrap().clear();
+                        SERVER_LISTENING_PORT
+                            .lock()
+                            .unwrap()
+                            .push_str(&p.to_string());
+                    }
+                    None => todo!(),
+                }
             }
-            PROXY_TARGET=config["Porxy"].get("host").unwrap().as_array();
+            // directory
+            if config.contains_key("directory") {
+                match config["directory"].get("root-path") {
+                    Some(p) => {
+                        ROOT_PATH.lock().unwrap().clear();
+                        ROOT_PATH.lock().unwrap().push_str(&p.to_string());
+                    }
+                    None => todo!(),
+                }
+            }
+            // porxy
+            if config.contains_key("proxy") {
+                match config["proxy"].get("target") {
+                    Some(p) => p
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .for_each(|e| PROXY_TARGET.push(e.to_string())),
+                    None => todo!(),
+                }
+            }
         },
         Err(_) => {
             // TODO
