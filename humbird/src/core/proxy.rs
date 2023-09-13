@@ -1,6 +1,6 @@
 use tokio::{io::AsyncWriteExt, net::TcpStream};
 
-use crate::protocol::http::{request::Request, response::Response};
+use crate::protocol::http::{Request, Response};
 
 /// proxy target host address list
 pub static mut PROXY_TARGET: Vec<String> = vec![];

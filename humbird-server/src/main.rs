@@ -9,8 +9,8 @@ mod cli;
 
 fn main() {
     // load config
-    load_config("/Users/max/GitProject/Humbird/humbird-server/src/config-template.toml".to_string());
+    //load_config("/Users/max/GitProject/Humbird/humbird-server/src/config-template.toml".to_string());
     // cli
-    let cli = Cli::parse();
+    //let cli = Cli::parse();
     run!();
 }

@@ -1,6 +1,5 @@
 /// core network service module, providing core network functions
-use crate::async_exe;
-use crate::protocol::http::http::*;
+use crate::{async_exe, protocol::http::Http};
 use chrono::Local;
 use lazy_static::lazy_static;
 use std::{io, sync::Mutex};
@@ -18,7 +17,7 @@ use tracing_subscriber::fmt::{format::Writer, time::FormatTime};
 /// server listening address
 pub const SERVER_LISTENING_ADDR: &'static str = "0.0.0.0";
 /// server listening default port
-pub const DEFAULT_SERVER_LISTENING_PORT: &'static str = "0.0.0.0";
+pub const DEFAULT_SERVER_LISTENING_PORT: &'static str = "9999";
 /// global constants related to services
 lazy_static! {
    /// server listening port,default 9999
@@ -47,11 +46,13 @@ macro_rules! run {
     };
 }
 
+/// network services core abstraction
 pub struct Server {
     rt: Runtime,
 }
 
 impl Server {
+    /// create a network service core abstraction instance
     pub fn new() -> Option<Server> {
         let r = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(10)
@@ -100,7 +101,7 @@ impl Server {
     #[instrument]
     async fn handle_tcp(r: OwnedReadHalf, w: OwnedWriteHalf) {
         match Http::new(r, w).await {
-            Ok(http) => {
+            Ok(mut http) => {
                 // respose
                 async_exe!(http.response());
             }

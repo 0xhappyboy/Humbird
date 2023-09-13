@@ -1,4 +1,4 @@
-use crate::protocol::http::r#type::HttpRequestProcess;
+use crate::protocol::http::HttpRequestProcess;
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -11,7 +11,7 @@ lazy_static! {
 }
 
 /// macro for registering web routes,work before starting humbird service
-/// 
+///
 /// Example
 /// ```rust
 /// // register plugin

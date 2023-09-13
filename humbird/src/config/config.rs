@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::{fs, io::Read, sync::Arc};
+use std::{fs, io::Read};
 
 use crate::{
+    core::proxy::PROXY_TARGET,
     core::server::{ROOT_PATH, SERVER_LISTENING_PORT},
-    proxy::proxy::PROXY_TARGET,
 };
 
 /// server config

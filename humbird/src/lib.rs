@@ -7,6 +7,4 @@ pub mod core;
 pub mod macros;
 /// this module provides network protocol abstraction
 pub mod protocol;
-/// this module is used for network proxy functions
-pub mod proxy;
 pub mod plugins;

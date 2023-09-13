@@ -1,5 +1,5 @@
-use humbird::protocol::http::request::Request;
-use humbird::protocol::http::response::Response;
+use humbird::protocol::http::Request;
+use humbird::protocol::http::Response;
 use humbird::register_router_plugin;
 use humbird::run;
 // plugin function
