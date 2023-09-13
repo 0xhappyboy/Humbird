@@ -35,7 +35,7 @@ impl Request {
             return Err("http request processing failed".to_string());
         }
         let items: Vec<&str> = protocol_line.split(" ").collect();
-        let mut req_str_buf = String::new();
+        let mut req_str_buf = String::default();
         let mut delimiter = Delimiter::HEAD;
         let mut req = Request {
             method: Method::new(items[0]),

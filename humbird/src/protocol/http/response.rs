@@ -51,7 +51,7 @@ impl Response {
             return Err("this is not an http response body".to_string());
         }
         let items: Vec<&str> = protocol_line.split(" ").collect();
-        let mut response_str_buf = String::new();
+        let mut response_str_buf = String::default();
         let mut delimiter = Delimiter::HEAD;
         let mut response = Response {
             protocol: items[0].to_string(),
@@ -72,7 +72,7 @@ impl Response {
             match delimiter {
                 Delimiter::HEAD => {
                     match r_buf.read_line(&mut response_str_buf).await {
-                        Ok(_) => {
+                        Ok(0) => {
                             break;
                         }
                         Ok(_n) => {
@@ -91,40 +91,29 @@ impl Response {
                     }
                 }
                 Delimiter::BODY => {
-                    match r_buf.read_line(&mut response_str_buf).await {
-                        Ok(_) => {
+                    let mut buf = vec![
+                        0u8;
+                        response
+                            .head
+                            .get("Content-Length")
+                            .unwrap()
+                            .parse::<u64>()
+                            .unwrap()
+                            .try_into()
+                            .unwrap()
+                    ];
+                    match r_buf.read(&mut buf).await {
+                        Ok(0) => {
+                            // TODO
                             break;
                         }
-                        Ok(_n) => {
-                            let mut buf = vec![
-                                0u8;
-                                response
-                                    .head
-                                    .get("Content-Length")
-                                    .unwrap()
-                                    .parse::<u64>()
-                                    .unwrap()
-                                    .try_into()
-                                    .unwrap()
-                            ];
-                            match r_buf.read(&mut buf).await {
-                                Ok(0) => {
-                                    // TODO
-                                    break;
-                                }
-                                Ok(_s) => {
-                                    // TODO
-                                    // save response body
-                                    response.body = buf;
-                                    break;
-                                }
-                                Err(_) => {
-                                    // TODO
-                                    break;
-                                }
-                            }
+                        Ok(_s) => {
+                            // save response body
+                            response.body = buf;
+                            break;
                         }
                         Err(_) => {
+                            // TODO
                             break;
                         }
                     }

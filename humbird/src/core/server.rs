@@ -1,11 +1,10 @@
 /// core network service module, providing core network functions
-use crate::{async_exe, config::config::*, protocol::http::response::Response};
+use crate::{async_exe, config::config::*};
 
 use tokio::{
-    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     net::{
         tcp::{OwnedReadHalf, OwnedWriteHalf},
-        TcpListener, TcpStream,
+        TcpListener,
     },
     runtime::Runtime,
     task,
@@ -92,7 +91,6 @@ impl Server {
     /// ```
     #[instrument]
     async fn handle_tcp(r: OwnedReadHalf, w: OwnedWriteHalf) {
-        let mut req_str_buf = String::new();
         match Http::new(r, w).await {
             Ok(http) => {
                 // respose
@@ -127,7 +125,7 @@ pub fn init_log() {
         .init();
 }
 
-use prettytable::{row, Cell, Row, Table};
+use prettytable::{row, Table};
 
 pub fn boot_info_string() -> String {
     let logo: &str = "
