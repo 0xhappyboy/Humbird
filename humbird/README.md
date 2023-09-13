@@ -3,7 +3,7 @@ humbird network communication core library
 **You Know, for Faster!**
 ## 📦 Crates
 ```
-
+humbird = "0.1.0"
 ```
 ## 👉 Usage
 ```rust
