@@ -1,7 +1,7 @@
-# 🐦 Humbird
+## 🐦 Humbird
 the high-performance server,Let network transmission be like hummingbird flapping its wings.  
 **You Know, for Faster!**
-# 👉 Command
+## 👉 Command
 ```
 You Know, for Faster! 
 
@@ -15,7 +15,7 @@ Options:
   -V, --version
           Print version
 ```
-# 📃 Configuration
+## 📃 Configuration
 Server configuration file templat
 ```
 [server]
@@ -34,7 +34,7 @@ target = ["0.0.0.0:80", ""0.0.0.0:8080", "0.0.0.0:8888"]
 # POLLING : polling mode
 mode = "WEIGHT"
 ```
-# 🗓️ Plan
+## 🗓️ Plan
 1. Support for some common web protocols,e.g.HTTP 0.9、HTTP 1.0、HTTP 1.1、HTTP 2.0. :stopwatch:
 2. Support for load balancing strategies.:stopwatch:
 3. Support access to static resources.:stopwatch:
@@ -44,6 +44,6 @@ mode = "WEIGHT"
 7. dash board.:stopwatch:
 8. look forward to more....
 
-# 🖼 Logo
+## 🖼 Logo
 Soon ....
 ![Humbird](https://github.com/0xhappyboy/humbird/blob/main/assets/imgs/logo_2.jpg "Humbird Server")
