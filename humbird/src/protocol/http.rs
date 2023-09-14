@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fs,
-    io::{Read, Write},
+    io::{self, Read, Write},
     path::Path,
 };
 
@@ -104,17 +104,23 @@ impl Http {
         }
     }
     // event poll response
-    pub async fn event_poll_response(mut self) {
+    pub fn event_poll_response(mut self) {
         match self.event {
             Some(e) => {
                 if e.is_writable() {
                     match self.event_poll_write {
-                        Some(mut stream) => stream.write_all(&self.response.body[..]).unwrap(),
-                        None => todo!(),
+                        Some(mut stream) => match stream.write_all(&self.response.body[..]) {
+                            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {}
+                            Err(e) => {
+                                return;
+                            }
+                            Ok(_) => {}
+                        },
+                        None => {}
                     }
                 }
             }
-            None => todo!(),
+            None => {}
         }
     }
     // is http protocol
@@ -136,7 +142,7 @@ impl Http {
 }
 
 // http protocol method encapsulation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Method {
     DEFAULT,
     GET,
@@ -463,7 +469,7 @@ impl Response {
             head: HashMap::default(),
             body: vec![],
             raw: String::default(),
-            req_method: Method::DEFAULT,
+            req_method: request.method,
             req_path: String::default(),
             content_length: 0,
         };

@@ -106,7 +106,7 @@ impl Server {
             loop {
                 let (stream, socket) = l.accept().await.unwrap();
                 info!("new visitor,ip:{}", socket.ip());
-                async_exe!(Server::to_multi_thread_http(stream));
+                Server::to_multi_thread_http(stream).await;
             }
         });
     }
@@ -125,7 +125,11 @@ impl Server {
                 .unwrap();
                 let mut server = TcpListener::bind(address).unwrap();
                 poll.registry()
-                    .register(&mut server, HUMBIRD_SERVER_TOKEN, Interest::READABLE)
+                    .register(
+                        &mut server,
+                        HUMBIRD_SERVER_TOKEN,
+                        Interest::READABLE.add(Interest::WRITABLE),
+                    )
                     .unwrap();
                 // connection pool mapping
                 let mut connections = HashMap::new();
@@ -135,7 +139,7 @@ impl Server {
                     for event in events.iter() {
                         match event.token() {
                             // a new connection
-                            HUMBIRD_SERVER_TOKEN => loop {
+                            HUMBIRD_SERVER_TOKEN => {
                                 let (mut connection, address) = match server.accept() {
                                     Ok((connection, address)) => (connection, address),
                                     Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
@@ -159,8 +163,7 @@ impl Server {
                                     )
                                     .unwrap();
                                 connections.insert(token, connection);
-                                Server::to_event_poll_http(event, connections.get(&token).unwrap());
-                            },
+                            }
                             // reuse
                             token => {
                                 if connections.contains_key(&token) {
@@ -189,10 +192,20 @@ impl Server {
     /// Server::start();
     /// ```
     async fn to_multi_thread_http(stream: tokio::net::TcpStream) {
-        let _ = Http::new_multi_thread(stream).await;
+        match Http::new_multi_thread(stream).await {
+            Ok(http) => {
+                http.multi_thread_response().await;
+            }
+            Err(_) => {}
+        }
     }
     fn to_event_poll_http(event: &Event, stream: &mio::net::TcpStream) {
-        let _ = Http::new_event_poll(event, stream);
+        match Http::new_event_poll(event, stream) {
+            Ok(http) => {
+                http.event_poll_response();
+            }
+            Err(_) => {}
+        }
     }
 }
 
