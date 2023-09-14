@@ -1,7 +1,9 @@
 [server]
 # port
 port = "port"
+event-poll = { size = 1024, life-cycle = 100000 }
 
+# event poll settings
 [directory]
 # local static resource path
 root-path = ""
