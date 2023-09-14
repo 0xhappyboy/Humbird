@@ -2,7 +2,7 @@
 use crate::{async_exe, protocol::http::Http};
 use chrono::Local;
 use lazy_static::lazy_static;
-use mio::{Events, Interest, Poll, Token};
+use mio::{event::Event, Events, Interest, Poll, Token};
 use std::{collections::HashMap, io, sync::Mutex};
 use tokio::{
     net::{
@@ -88,100 +88,107 @@ impl Server {
     pub fn start(&self, model: NetModel) {
         init_log();
         match model {
-            NetModel::Multithread => {
-                self.rt.block_on(async {
-                    // tcp listener
-                    let l = TcpListener::bind(format!(
-                        "{}:{}",
-                        SERVER_LISTENING_ADDR,
-                        SERVER_LISTENING_PORT.lock().unwrap()
-                    ))
-                    .await
-                    .unwrap();
-                    loop {
-                        let (stream, socket) = l.accept().await.unwrap();
-                        info!("new visitor,ip:{}", socket.ip());
-                        let (r, w) = stream.into_split();
-                        async_exe!(Server::handle_tcp(r, w));
-                    }
-                });
+            NetModel::Multithread => self.handle_multi_thread(),
+            NetModel::EventPoll => self.handle_event_poll(),
+        }
+    }
+    /// handle multi thread
+    fn handle_multi_thread(&self) {
+        self.rt.block_on(async {
+            // tcp listener
+            let l = TcpListener::bind(format!(
+                "{}:{}",
+                SERVER_LISTENING_ADDR,
+                SERVER_LISTENING_PORT.lock().unwrap()
+            ))
+            .await
+            .unwrap();
+            loop {
+                let (stream, socket) = l.accept().await.unwrap();
+                info!("new visitor,ip:{}", socket.ip());
+                let (r, w) = stream.into_split();
+                async_exe!(Server::to_multi_thread_http(stream));
             }
-            NetModel::EventPoll => {
-                use mio::net::{TcpListener, TcpStream};
-                match Poll::new() {
-                    Ok(mut poll) => {
-                        let mut events = Events::with_capacity(EVENT_POOL_COUNT);
-                        let address = format!(
-                            "{}:{}",
-                            SERVER_LISTENING_ADDR,
-                            SERVER_LISTENING_PORT.lock().unwrap()
-                        )
-                        .parse()
-                        .unwrap();
-                        let mut server = TcpListener::bind(address).unwrap();
-                        poll.registry()
-                            .register(&mut server, HUMBIRD_SERVER_TOKEN, Interest::READABLE)
-                            .unwrap();
-                        // connection pool mapping
-                        let mut connections = HashMap::new();
-                        let mut unique_token = Token(HUMBIRD_SERVER_TOKEN.0 + 1);
-                        loop {
-                            let _ = poll.poll(&mut events, None).unwrap();
-                            for event in events.iter() {
-                                match event.token() {
-                                    // a new connection
-                                    SERVER => loop {
-                                        let (mut connection, address) = match server.accept() {
-                                            Ok((connection, address)) => (connection, address),
-                                            Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                                                break;
-                                            }
-                                            Err(e) => {
-                                                break;
-                                            }
-                                        };
-                                        // the unique token of the tcp link
-                                        let token = {
-                                            let next = unique_token.0;
-                                            unique_token.0 += 1;
-                                            Token(next)
-                                        };
-                                        poll.registry()
-                                            .register(
-                                                &mut connection,
-                                                token,
-                                                Interest::READABLE.add(Interest::WRITABLE),
-                                            )
-                                            .unwrap();
-                                        connections.insert(token, connection);
-                                    },
-                                    // reuse
-                                    token => {}
+        });
+    }
+    /// handle evet poll
+    fn handle_event_poll(&self) {
+        use mio::net::TcpListener;
+        match Poll::new() {
+            Ok(mut poll) => {
+                let mut events = Events::with_capacity(EVENT_POOL_COUNT);
+                let address = format!(
+                    "{}:{}",
+                    SERVER_LISTENING_ADDR,
+                    SERVER_LISTENING_PORT.lock().unwrap()
+                )
+                .parse()
+                .unwrap();
+                let mut server = TcpListener::bind(address).unwrap();
+                poll.registry()
+                    .register(&mut server, HUMBIRD_SERVER_TOKEN, Interest::READABLE)
+                    .unwrap();
+                // connection pool mapping
+                let mut connections = HashMap::new();
+                let mut unique_token = Token(HUMBIRD_SERVER_TOKEN.0 + 1);
+                loop {
+                    let _ = poll.poll(&mut events, None).unwrap();
+                    for event in events.iter() {
+                        match event.token() {
+                            // a new connection
+                            HUMBIRD_SERVER_TOKEN => loop {
+                                let (mut connection, address) = match server.accept() {
+                                    Ok((connection, address)) => (connection, address),
+                                    Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                                        break;
+                                    }
+                                    Err(e) => {
+                                        break;
+                                    }
+                                };
+                                // the unique token of the tcp link
+                                let token = {
+                                    let next = unique_token.0;
+                                    unique_token.0 += 1;
+                                    Token(next)
+                                };
+                                poll.registry()
+                                    .register(
+                                        &mut connection,
+                                        token,
+                                        Interest::READABLE.add(Interest::WRITABLE),
+                                    )
+                                    .unwrap();
+                                connections.insert(token, connection);
+                                Server::to_event_poll_http(event, connections.get(&token).unwrap());
+                            },
+                            // reuse
+                            token => {
+                                if connections.contains_key(&token) {
+                                    match connections.get(&token) {
+                                        Some(c) => {}
+                                        None => {}
+                                    }
                                 }
                             }
                         }
                     }
-                    Err(_) => {}
                 }
             }
+            Err(_) => {}
         }
     }
-
     /// handle tcp message
     ///
     /// Example
     /// ```rust
     /// Server::start();
     /// ```
-    #[instrument]
-    async fn handle_tcp(r: OwnedReadHalf, w: OwnedWriteHalf) {
-        match Http::new(r, w).await {
-            Ok(mut http) => {
-                // respose
-                async_exe!(http.response());
-            }
-            Err(_) => {}
-        }
+    async fn to_multi_thread_http(stream: tokio::net::TcpStream) {
+        Http::new_multi_thread(stream).await;
+    }
+    async fn to_event_poll_http(event: &Event, stream: mio::net::TcpStream) {
+        Http::new_event_poll(event, stream).await;
     }
 }
 

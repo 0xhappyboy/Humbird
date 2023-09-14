@@ -1,13 +1,19 @@
-use std::{collections::HashMap, fs, path::Path};
-
-use regex::Regex;
-use tokio::{
-    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
-    net::tcp::{OwnedReadHalf, OwnedWriteHalf},
+use std::{
+    collections::HashMap,
+    fs,
+    io::{Read, Write},
+    path::Path,
 };
+
+use mio::event::Event;
+use regex::Regex;
+use tokio::{io::AsyncWriteExt, net::tcp::OwnedReadHalf};
 use tracing::{error, instrument};
 
-use crate::{core::server::ROOT_PATH, plugins::web::ROUTER_TABLE};
+use crate::{
+    core::server::{NetModel, ROOT_PATH},
+    plugins::web::ROUTER_TABLE,
+};
 
 /// http request process
 pub type HttpRequestProcess = fn(Request, Response) -> Response;
@@ -22,21 +28,37 @@ pub enum Delimiter {
 // overall encapsulation of http protocol packets
 #[derive(Debug)]
 pub struct Http {
-    pub w: OwnedWriteHalf,
     pub request: Request,
     pub response: Response,
+    pub multi_thread_write: Option<tokio::net::tcp::OwnedWriteHalf>,
+    pub event_poll_write: Option<mio::net::TcpStream>,
+    pub event: Option<Event>,
+    pub net_model: NetModel,
 }
 
 impl Http {
-    #[instrument]
-    pub async fn new(r: OwnedReadHalf, w: OwnedWriteHalf) -> Result<Http, String> {
-        match Request::read(r).await {
+    pub async fn new_multi_thread(stream: tokio::net::TcpStream) -> Result<Http, String> {
+        return Http::handle_multi_thread(stream).await;
+    }
+    pub async fn new_event_poll(
+        event: &Event,
+        stream: mio::net::TcpStream,
+    ) -> Result<Http, String> {
+        return Http::handle_event_poll(event, stream).await;
+    }
+    // handle multi thread model http
+    async fn handle_multi_thread(stream: tokio::net::TcpStream) -> Result<Http, String> {
+        let (r, w) = stream.into_split();
+        match Request::multi_thread_read(r).await {
             Ok(request) => {
                 let response = Response::new(&request);
                 let mut http = Http {
-                    w: w,
                     request: request,
                     response: response,
+                    multi_thread_write: Some(w),
+                    event_poll_write: None,
+                    event: None,
+                    net_model: NetModel::Multithread,
                 };
                 // exec plugin
                 http.exec_plugin();
@@ -48,9 +70,55 @@ impl Http {
             }
         }
     }
-    // response
-    pub async fn response(mut self) {
-        let _ = self.w.write_all(&self.response.body[..]).await;
+    // handle event poll model http
+    async fn handle_event_poll(event: &Event, stream: mio::net::TcpStream) -> Result<Http, String> {
+        if event.is_readable() {
+            match Request::event_poll_read(stream).await {
+                Ok(request) => {
+                    let response = Response::new(&request);
+                    let mut http = Http {
+                        request: request,
+                        response: response,
+                        event_poll_write: None,
+                        multi_thread_write: None,
+                        event: Some(event.clone()),
+                        net_model: NetModel::EventPoll,
+                    };
+                    // exec plugin
+                    http.exec_plugin();
+                    return Ok(http);
+                }
+                Err(_e) => {
+                    error!("http request processing failed");
+                    return Err("http request processing failed".to_string());
+                }
+            }
+        } else {
+            return Err("the event is not readable".to_string());
+        }
+    }
+    // multi thread response
+    pub async fn multi_thread_response(mut self) {
+        match self.multi_thread_write {
+            Some(mut w) => {
+                w.write_all(&self.response.body[..]).await;
+            }
+            None => todo!(),
+        }
+    }
+    // event poll response
+    pub async fn event_poll_response(mut self) {
+        match self.event {
+            Some(e) => {
+                if e.is_writable() {
+                    match self.event_poll_write {
+                        Some(mut stream) => stream.write_all(&self.response.body[..]).unwrap(),
+                        None => todo!(),
+                    }
+                }
+            }
+            None => todo!(),
+        }
     }
     // is http protocol
     pub fn is(c: String) -> bool {
@@ -112,7 +180,11 @@ impl Request {
         Ok(())
     }
     #[instrument]
-    pub async fn read(r: OwnedReadHalf) -> Result<Self, String> {
+    pub async fn multi_thread_read(r: OwnedReadHalf) -> Result<Self, String> {
+        use tokio::io::AsyncBufReadExt;
+        use tokio::io::AsyncReadExt;
+        use tokio::io::BufReader;
+        use tokio::net::tcp::OwnedReadHalf;
         let mut protocol_line = String::default();
         let mut r_buf: BufReader<OwnedReadHalf> = BufReader::new(r);
         let _ = r_buf.read_line(&mut protocol_line).await;
@@ -170,6 +242,112 @@ impl Request {
                                     .unwrap()
                             ];
                             match r_buf.read(&mut buf).await {
+                                Ok(0) => {
+                                    // TODO
+                                    break;
+                                }
+                                Ok(_s) => {
+                                    // TODO
+                                    // save request body
+                                    req.body = buf;
+                                    break;
+                                }
+                                Err(_) => {
+                                    // TODO
+                                    break;
+                                }
+                            }
+                        }
+                        Method::GET => {
+                            break;
+                        }
+                        Method::HEAD => {
+                            //TODO
+                        }
+                        Method::PUT => {
+                            //TODO
+                        }
+                        Method::DELETE => {
+                            //TODO
+                        }
+                        Method::CONNECT => {
+                            //TODO
+                        }
+                        Method::OPTIONS => {
+                            //TODO
+                        }
+                        Method::TRACE => {
+                            //TODO
+                        }
+                        Method::DEFAULT => {
+                            // TODO
+                        }
+                    }
+                }
+            }
+        }
+        Ok(req)
+    }
+    pub async fn event_poll_read(stream: mio::net::TcpStream) -> Result<Self, String> {
+        use std::io::BufRead;
+        use std::io::BufReader;
+        let mut r_buf = BufReader::new(stream);
+        let mut protocol_line = String::default();
+        let _ = r_buf.read_line(&mut protocol_line);
+        if !Request::is(protocol_line.to_string()) {
+            return Err("http request processing failed".to_string());
+        }
+        let items: Vec<&str> = protocol_line.split(" ").collect();
+        let mut req_str_buf = String::default();
+        let mut delimiter = Delimiter::HEAD;
+        let mut req = Request {
+            method: Method::new(items[0]),
+            path: items[1].to_string(),
+            protocol: items[2].to_string().replace("\r\n", ""),
+            cookie: HashMap::default(),
+            head: HashMap::default(),
+            body: Vec::new(),
+            raw: String::from(protocol_line.clone()),
+        };
+        loop {
+            match delimiter {
+                Delimiter::HEAD => {
+                    // handle head
+                    match r_buf.read_line(&mut req_str_buf) {
+                        Ok(0) => {
+                            // end
+                            break;
+                        }
+                        Ok(_n) => {
+                            let c = req_str_buf.drain(..).as_str().to_string();
+                            req.raw.push_str(&c);
+                            if c.eq("\r\n") {
+                                delimiter = Delimiter::BODY;
+                                continue;
+                            };
+                            // push request head
+                            req.push_head(c);
+                        }
+                        Err(_) => {
+                            // error
+                            break;
+                        }
+                    }
+                }
+                Delimiter::BODY => {
+                    match req.method {
+                        Method::POST => {
+                            let mut buf = vec![
+                                0u8;
+                                req.head
+                                    .get("Content-Length")
+                                    .unwrap()
+                                    .parse::<u64>()
+                                    .unwrap()
+                                    .try_into()
+                                    .unwrap()
+                            ];
+                            match r_buf.read(&mut buf) {
                                 Ok(0) => {
                                     // TODO
                                     break;
@@ -297,6 +475,10 @@ impl Response {
     }
     #[instrument]
     pub async fn read(r: OwnedReadHalf) -> Result<Self, String> {
+        use tokio::io::AsyncBufReadExt;
+        use tokio::io::AsyncReadExt;
+        use tokio::io::BufReader;
+        use tokio::net::tcp::OwnedReadHalf;
         let mut protocol_line = String::default();
         let mut r_buf: BufReader<OwnedReadHalf> = BufReader::new(r);
         let _ = r_buf.read_line(&mut protocol_line).await;
