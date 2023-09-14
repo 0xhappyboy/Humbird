@@ -106,7 +106,6 @@ impl Server {
             loop {
                 let (stream, socket) = l.accept().await.unwrap();
                 info!("new visitor,ip:{}", socket.ip());
-                let (r, w) = stream.into_split();
                 async_exe!(Server::to_multi_thread_http(stream));
             }
         });
@@ -166,7 +165,12 @@ impl Server {
                             token => {
                                 if connections.contains_key(&token) {
                                     match connections.get(&token) {
-                                        Some(c) => {}
+                                        Some(stream) => {
+                                            Server::to_event_poll_http(
+                                                event,
+                                                connections.get(&token).unwrap(),
+                                            );
+                                        }
                                         None => {}
                                     }
                                 }
@@ -185,10 +189,10 @@ impl Server {
     /// Server::start();
     /// ```
     async fn to_multi_thread_http(stream: tokio::net::TcpStream) {
-        Http::new_multi_thread(stream).await;
+        let _ = Http::new_multi_thread(stream).await;
     }
-    async fn to_event_poll_http(event: &Event, stream: mio::net::TcpStream) {
-        Http::new_event_poll(event, stream).await;
+    fn to_event_poll_http(event: &Event, stream: &mio::net::TcpStream) {
+        let _ = Http::new_event_poll(event, stream);
     }
 }
 

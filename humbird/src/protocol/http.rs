@@ -40,11 +40,8 @@ impl Http {
     pub async fn new_multi_thread(stream: tokio::net::TcpStream) -> Result<Http, String> {
         return Http::handle_multi_thread(stream).await;
     }
-    pub async fn new_event_poll(
-        event: &Event,
-        stream: mio::net::TcpStream,
-    ) -> Result<Http, String> {
-        return Http::handle_event_poll(event, stream).await;
+    pub fn new_event_poll(event: &Event, stream: &mio::net::TcpStream) -> Result<Http, String> {
+        return Http::handle_event_poll(event, stream);
     }
     // handle multi thread model http
     async fn handle_multi_thread(stream: tokio::net::TcpStream) -> Result<Http, String> {
@@ -71,9 +68,9 @@ impl Http {
         }
     }
     // handle event poll model http
-    async fn handle_event_poll(event: &Event, stream: mio::net::TcpStream) -> Result<Http, String> {
+    fn handle_event_poll(event: &Event, stream: &mio::net::TcpStream) -> Result<Http, String> {
         if event.is_readable() {
-            match Request::event_poll_read(stream).await {
+            match Request::event_poll_read(stream) {
                 Ok(request) => {
                     let response = Response::new(&request);
                     let mut http = Http {
@@ -288,7 +285,7 @@ impl Request {
         }
         Ok(req)
     }
-    pub async fn event_poll_read(stream: mio::net::TcpStream) -> Result<Self, String> {
+    pub fn event_poll_read(stream: &mio::net::TcpStream) -> Result<Self, String> {
         use std::io::BufRead;
         use std::io::BufReader;
         let mut r_buf = BufReader::new(stream);
