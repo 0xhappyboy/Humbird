@@ -1,19 +1,16 @@
 /// core network service module, providing core network functions
-use crate::{async_exe, protocol::http::Http};
+use crate::protocol::http::Http;
 use chrono::Local;
 use lazy_static::lazy_static;
 use mio::{event::Event, Events, Interest, Poll, Token};
-use std::{collections::HashMap, io, sync::Mutex};
-use tokio::{
-    net::{
-        tcp::{OwnedReadHalf, OwnedWriteHalf},
-        TcpListener,
-    },
-    runtime::Runtime,
-    task,
+use std::{
+    collections::HashMap,
+    io::{self, Write},
+    sync::Mutex,
 };
+use tokio::{net::TcpListener, runtime::Runtime};
+use tracing::info;
 use tracing::Level;
-use tracing::{info, instrument};
 use tracing_subscriber::fmt::{format::Writer, time::FormatTime};
 /// server listening address
 pub const SERVER_LISTENING_ADDR: &'static str = "0.0.0.0";
@@ -140,12 +137,12 @@ impl Server {
                         match event.token() {
                             // a new connection
                             HUMBIRD_SERVER_TOKEN => {
-                                let (mut connection, address) = match server.accept() {
+                                let (mut connection, _address) = match server.accept() {
                                     Ok((connection, address)) => (connection, address),
                                     Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
                                         break;
                                     }
-                                    Err(e) => {
+                                    Err(_e) => {
                                         break;
                                     }
                                 };
@@ -171,7 +168,12 @@ impl Server {
                                         Some(stream) => {
                                             Server::to_event_poll_http(
                                                 event,
-                                                connections.get(&token).unwrap(),
+                                                stream,
+                                                |http, mut stream| {
+                                                    println!("闭包处理响应:{:?}", http);
+                                                    let _ =
+                                                        stream.write_all(&http.response.body[..]);
+                                                },
                                             );
                                         }
                                         None => {}
@@ -199,11 +201,12 @@ impl Server {
             Err(_) => {}
         }
     }
-    fn to_event_poll_http(event: &Event, stream: &mio::net::TcpStream) {
-        match Http::new_event_poll(event, stream) {
-            Ok(http) => {
-                http.event_poll_response();
-            }
+    fn to_event_poll_http<F>(event: &Event, stream: &mio::net::TcpStream, response: F)
+    where
+        F: FnMut(&mut Http, &mio::net::TcpStream),
+    {
+        match Http::new_event_poll(event, stream, response) {
+            Ok(_http) => {}
             Err(_) => {}
         }
     }

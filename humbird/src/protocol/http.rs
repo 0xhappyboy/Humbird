@@ -40,8 +40,15 @@ impl Http {
     pub async fn new_multi_thread(stream: tokio::net::TcpStream) -> Result<Http, String> {
         return Http::handle_multi_thread(stream).await;
     }
-    pub fn new_event_poll(event: &Event, stream: &mio::net::TcpStream) -> Result<Http, String> {
-        return Http::handle_event_poll(event, stream);
+    pub fn new_event_poll<F>(
+        event: &Event,
+        stream: &mio::net::TcpStream,
+        response: F,
+    ) -> Result<Http, String>
+    where
+        F: FnMut(&mut Http, &mio::net::TcpStream),
+    {
+        return Http::handle_event_poll(event, stream, response);
     }
     // handle multi thread model http
     async fn handle_multi_thread(stream: tokio::net::TcpStream) -> Result<Http, String> {
@@ -68,21 +75,33 @@ impl Http {
         }
     }
     // handle event poll model http
-    fn handle_event_poll(event: &Event, stream: &mio::net::TcpStream) -> Result<Http, String> {
+    fn handle_event_poll<F>(
+        event: &Event,
+        stream: &mio::net::TcpStream,
+        mut response: F,
+    ) -> Result<Http, String>
+    where
+        F: FnMut(&mut Http, &mio::net::TcpStream),
+    {
         if event.is_readable() {
             match Request::event_poll_read(stream) {
                 Ok(request) => {
-                    let response = Response::new(&request);
+                    let res = Response::new(&request);
                     let mut http = Http {
                         request: request,
-                        response: response,
+                        response: res,
                         event_poll_write: None,
                         multi_thread_write: None,
-                        event: Some(event.clone()),
+                        event: Some(event.to_owned()),
                         net_model: NetModel::EventPoll,
                     };
+
                     // exec plugin
                     http.exec_plugin();
+                    // can now response
+                    if event.is_writable() {
+                        response(&mut http, stream);
+                    }
                     return Ok(http);
                 }
                 Err(_e) => {
@@ -95,23 +114,23 @@ impl Http {
         }
     }
     // multi thread response
-    pub async fn multi_thread_response(mut self) {
+    pub async fn multi_thread_response(self) {
         match self.multi_thread_write {
             Some(mut w) => {
-                w.write_all(&self.response.body[..]).await;
+                let _ = w.write_all(&self.response.body[..]).await;
             }
             None => todo!(),
         }
     }
     // event poll response
-    pub fn event_poll_response(mut self) {
+    pub fn event_poll_response(self) {
         match self.event {
             Some(e) => {
                 if e.is_writable() {
                     match self.event_poll_write {
                         Some(mut stream) => match stream.write_all(&self.response.body[..]) {
                             Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {}
-                            Err(e) => {
+                            Err(_e) => {
                                 return;
                             }
                             Ok(_) => {}
@@ -331,10 +350,9 @@ impl Request {
                             // push request head
                             req.push_head(c);
                         }
-                        Err(_) => {
-                            // error
-                            break;
-                        }
+                        Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => break,
+                        Err(ref err) if err.kind() == io::ErrorKind::Interrupted => break,
+                        Err(_) => break,
                     }
                 }
                 Delimiter::BODY => {
@@ -361,10 +379,9 @@ impl Request {
                                     req.body = buf;
                                     break;
                                 }
-                                Err(_) => {
-                                    // TODO
-                                    break;
-                                }
+                                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => break,
+                                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => break,
+                                Err(_) => break,
                             }
                         }
                         Method::GET => {
