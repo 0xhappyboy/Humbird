@@ -170,7 +170,6 @@ impl Server {
                                                 event,
                                                 stream,
                                                 |http, mut stream| {
-                                                    println!("闭包处理响应:{:?}", http);
                                                     let _ =
                                                         stream.write_all(&http.response.body[..]);
                                                 },
