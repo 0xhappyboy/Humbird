@@ -280,30 +280,14 @@ impl Request {
                                 }
                             }
                         }
-                        Method::GET => {
-                            break;
-                        }
-                        Method::HEAD => {
-                            //TODO
-                        }
-                        Method::PUT => {
-                            //TODO
-                        }
-                        Method::DELETE => {
-                            //TODO
-                        }
-                        Method::CONNECT => {
-                            //TODO
-                        }
-                        Method::OPTIONS => {
-                            //TODO
-                        }
-                        Method::TRACE => {
-                            //TODO
-                        }
-                        Method::DEFAULT => {
-                            // TODO
-                        }
+                        Method::GET => break,
+                        Method::HEAD => break,
+                        Method::PUT => break,
+                        Method::DELETE => break,
+                        Method::CONNECT => break,
+                        Method::OPTIONS => break,
+                        Method::TRACE => break,
+                        Method::DEFAULT => break,
                     }
                 }
             }
@@ -384,30 +368,14 @@ impl Request {
                                 Err(_) => break,
                             }
                         }
-                        Method::GET => {
-                            break;
-                        }
-                        Method::HEAD => {
-                            //TODO
-                        }
-                        Method::PUT => {
-                            //TODO
-                        }
-                        Method::DELETE => {
-                            //TODO
-                        }
-                        Method::CONNECT => {
-                            //TODO
-                        }
-                        Method::OPTIONS => {
-                            //TODO
-                        }
-                        Method::TRACE => {
-                            //TODO
-                        }
-                        Method::DEFAULT => {
-                            // TODO
-                        }
+                        Method::GET => break,
+                        Method::HEAD => break,
+                        Method::PUT => break,
+                        Method::DELETE => break,
+                        Method::CONNECT => break,
+                        Method::OPTIONS => break,
+                        Method::TRACE => break,
+                        Method::DEFAULT => break,
                     }
                 }
             }
