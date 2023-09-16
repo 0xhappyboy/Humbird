@@ -5,7 +5,7 @@ use std::{
     path::Path,
 };
 
-use mio::event::Event;
+use mio::{event::Event, net::TcpStream, Token};
 use regex::Regex;
 use tokio::{io::AsyncWriteExt, net::tcp::OwnedReadHalf};
 use tracing::{error, instrument};
@@ -30,42 +30,24 @@ pub enum Delimiter {
 pub struct Http {
     pub request: Request,
     pub response: Response,
-    pub multi_thread_write: Option<tokio::net::tcp::OwnedWriteHalf>,
-    pub event_poll_write: Option<mio::net::TcpStream>,
-    pub event: Option<Event>,
     pub net_model: NetModel,
 }
 
 impl Http {
-    pub async fn new_multi_thread(stream: tokio::net::TcpStream) -> Result<Http, String> {
-        return Http::handle_multi_thread(stream).await;
-    }
-    pub fn new_event_poll<F>(
-        event: &Event,
-        stream: &mio::net::TcpStream,
-        response: F,
-    ) -> Result<Http, String>
-    where
-        F: FnMut(&mut Http, &mio::net::TcpStream),
-    {
-        return Http::handle_event_poll(event, stream, response);
-    }
-    // handle multi thread model http
-    async fn handle_multi_thread(stream: tokio::net::TcpStream) -> Result<Http, String> {
-        let (r, w) = stream.into_split();
+    pub async fn multi_thread(stream: tokio::net::TcpStream) -> Result<Http, String> {
+        let (r, mut w) = stream.into_split();
         match Request::multi_thread_read(r).await {
             Ok(request) => {
                 let response = Response::new(&request);
                 let mut http = Http {
                     request: request,
                     response: response,
-                    multi_thread_write: Some(w),
-                    event_poll_write: None,
-                    event: None,
                     net_model: NetModel::Multithread,
                 };
                 // exec plugin
-                http.exec_plugin();
+                http.router();
+                // response
+                let _ = w.write_all(&http.response.body[..]).await;
                 return Ok(http);
             }
             Err(_e) => {
@@ -74,72 +56,40 @@ impl Http {
             }
         }
     }
-    // handle event poll model http
-    fn handle_event_poll<F>(
+    pub fn event_poll(
         event: &Event,
-        stream: &mio::net::TcpStream,
-        mut response: F,
-    ) -> Result<Http, String>
-    where
-        F: FnMut(&mut Http, &mio::net::TcpStream),
-    {
-        if event.is_readable() {
-            match Request::event_poll_read(stream) {
-                Ok(request) => {
-                    let res = Response::new(&request);
-                    let mut http = Http {
-                        request: request,
-                        response: res,
-                        event_poll_write: None,
-                        multi_thread_write: None,
-                        event: Some(event.to_owned()),
-                        net_model: NetModel::EventPoll,
-                    };
-
-                    // exec plugin
-                    http.exec_plugin();
-                    // can now response
-                    if event.is_writable() {
-                        response(&mut http, stream);
+        m: &HashMap<Token, TcpStream>,
+        mut token: &Token,
+    ) -> Result<Http, String> {
+        match m.get(token) {
+            Some(mut stream) => {
+                if event.is_readable() {
+                    match Request::event_poll_read(stream) {
+                        Ok(request) => {
+                            let res = Response::new(&request);
+                            let mut http = Http {
+                                request: request,
+                                response: res,
+                                net_model: NetModel::EventPoll,
+                            };
+                            // exec plugin
+                            http.router();
+                            // reponse
+                            let _ = stream.write_all(&http.response.raw[..]);
+                            return Ok(http);
+                        }
+                        Err(_e) => {
+                            error!("http request processing failed");
+                            return Err("http request processing failed".to_string());
+                        }
                     }
-                    return Ok(http);
-                }
-                Err(_e) => {
-                    error!("http request processing failed");
-                    return Err("http request processing failed".to_string());
+                } else {
+                    return Err("the event is not readable".to_string());
                 }
             }
-        } else {
-            return Err("the event is not readable".to_string());
-        }
-    }
-    // multi thread response
-    pub async fn multi_thread_response(self) {
-        match self.multi_thread_write {
-            Some(mut w) => {
-                let _ = w.write_all(&self.response.body[..]).await;
+            None => {
+                return Err("event poll token is null".to_string());
             }
-            None => todo!(),
-        }
-    }
-    // event poll response
-    pub fn event_poll_response(self) {
-        match self.event {
-            Some(e) => {
-                if e.is_writable() {
-                    match self.event_poll_write {
-                        Some(mut stream) => match stream.write_all(&self.response.body[..]) {
-                            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {}
-                            Err(_e) => {
-                                return;
-                            }
-                            Ok(_) => {}
-                        },
-                        None => {}
-                    }
-                }
-            }
-            None => {}
         }
     }
     // is http protocol
@@ -148,14 +98,19 @@ impl Http {
         re.is_match(&c)
     }
     /// execute plugin
-    fn exec_plugin(&mut self) {
+    fn router(&mut self) -> Result<Response, ()> {
         match ROUTER_TABLE.lock() {
             Ok(t) => {
                 if t.len() > 0 && t.contains_key(&self.request.path) {
-                    t.get(&self.request.path).unwrap()(self.request.clone(), self.response.clone());
+                    Ok(t.get(&self.request.path).unwrap()(
+                        self.request.clone(),
+                        self.response.clone(),
+                    ))
+                } else {
+                    Err(())
                 }
             }
-            Err(_) => {}
+            Err(_) => Err(()),
         }
     }
 }
@@ -439,9 +394,9 @@ pub struct Response {
     pub head: HashMap<String, String>,
     pub body: Vec<u8>,
     pub content_length: u64,
+    pub raw: Vec<u8>,
     req_method: Method,
     req_path: String,
-    raw: String,
 }
 
 impl Response {
@@ -453,7 +408,7 @@ impl Response {
             status_msg: String::default(),
             head: HashMap::default(),
             body: vec![],
-            raw: String::default(),
+            raw: vec![],
             req_method: request.method,
             req_path: String::default(),
             content_length: 0,
@@ -485,7 +440,7 @@ impl Response {
             },
             head: HashMap::default(),
             body: vec![],
-            raw: String::default(),
+            raw: vec![],
             req_method: Method::DEFAULT,
             req_path: String::default(),
             content_length: 0,
@@ -500,7 +455,7 @@ impl Response {
                         }
                         Ok(_n) => {
                             let c = response_str_buf.drain(..).as_str().to_string();
-                            response.raw.push_str(&c);
+                            response.raw.extend(c.as_bytes().iter());
                             if c.eq("\r\n") {
                                 delimiter = Delimiter::BODY;
                                 continue;
@@ -597,17 +552,17 @@ impl Response {
                 );
             }
         }
-        self.body = res.as_bytes().to_vec();
+        self.raw = res.as_bytes().to_vec();
     }
     /// handle post method response
     fn handle_post_response(&mut self) {
-        let c = format!("response test");
+        let c = format!("response test response testresponse testresponse testresponse testresponse testresponse testresponse test");
         let res = format!(
             "HTTP/1.1 200 OK \r\nContent-Length:{} \r\n\r\n{}\r\n",
             c.len(),
             c
         );
-        self.body = res.as_bytes().to_vec()
+        self.raw = res.as_bytes().to_vec()
     }
     pub fn push_head(&mut self, item: String) {
         let item_split: Vec<&str> = item.split(":").collect();

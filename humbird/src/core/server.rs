@@ -80,17 +80,24 @@ impl Server {
     ///
     /// Example
     /// ```rust
-    /// Server::start();
+    /// Server::start($crate::core::server::NetModel::EventPoll);
+    /// // or
+    /// Server::start($crate::core::server::NetModel::Multithread);
     /// ```
     pub fn start(&self, model: NetModel) {
         init_log();
         match model {
-            NetModel::Multithread => self.handle_multi_thread(),
-            NetModel::EventPoll => self.handle_event_poll(),
+            NetModel::Multithread => self.multi_thread(),
+            NetModel::EventPoll => self.event_poll(),
         }
     }
     /// handle multi thread
-    fn handle_multi_thread(&self) {
+    ///
+    /// Example
+    /// ```rust
+    /// Server::start();
+    /// ```
+    fn multi_thread(&self) {
         self.rt.block_on(async {
             // tcp listener
             let l = TcpListener::bind(format!(
@@ -103,12 +110,15 @@ impl Server {
             loop {
                 let (stream, socket) = l.accept().await.unwrap();
                 info!("new visitor,ip:{}", socket.ip());
-                Server::to_multi_thread_http(stream).await;
+                match Http::multi_thread(stream).await {
+                    Ok(http) => {}
+                    Err(_) => {}
+                }
             }
         });
     }
     /// handle evet poll
-    fn handle_event_poll(&self) {
+    fn event_poll(&self) {
         use mio::net::TcpListener;
         match Poll::new() {
             Ok(mut poll) => {
@@ -166,14 +176,10 @@ impl Server {
                                 if connections.contains_key(&token) {
                                     match connections.get(&token) {
                                         Some(stream) => {
-                                            Server::to_event_poll_http(
-                                                event,
-                                                stream,
-                                                |http, mut stream| {
-                                                    let _ =
-                                                        stream.write_all(&http.response.body[..]);
-                                                },
-                                            );
+                                            match Http::event_poll(&event, &connections, &token) {
+                                                Ok(http) => {}
+                                                Err(_) => {}
+                                            }
                                         }
                                         None => {}
                                     }
@@ -183,29 +189,6 @@ impl Server {
                     }
                 }
             }
-            Err(_) => {}
-        }
-    }
-    /// handle tcp message
-    ///
-    /// Example
-    /// ```rust
-    /// Server::start();
-    /// ```
-    async fn to_multi_thread_http(stream: tokio::net::TcpStream) {
-        match Http::new_multi_thread(stream).await {
-            Ok(http) => {
-                http.multi_thread_response().await;
-            }
-            Err(_) => {}
-        }
-    }
-    fn to_event_poll_http<F>(event: &Event, stream: &mio::net::TcpStream, response: F)
-    where
-        F: FnMut(&mut Http, &mio::net::TcpStream),
-    {
-        match Http::new_event_poll(event, stream, response) {
-            Ok(_http) => {}
             Err(_) => {}
         }
     }

@@ -1,9 +1,6 @@
 use clap::Parser;
 use cli::cli::Cli;
-use humbird::{
-    config::config::load_config,
-    run,
-};
+use humbird::{config::config::load_config, run};
 
 mod cli;
 
