@@ -92,11 +92,6 @@ impl Server {
         }
     }
     /// handle multi thread
-    ///
-    /// Example
-    /// ```rust
-    /// Server::start();
-    /// ```
     fn multi_thread(&self) {
         self.rt.block_on(async {
             // tcp listener
@@ -170,6 +165,10 @@ impl Server {
                                     )
                                     .unwrap();
                                 connections.insert(token, connection);
+                                match Http::event_poll(&event, &connections, &token) {
+                                    Ok(http) => {}
+                                    Err(_) => {}
+                                }
                             }
                             // reuse
                             token => {

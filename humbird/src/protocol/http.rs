@@ -45,8 +45,12 @@ impl Http {
                     net_model: NetModel::Multithread,
                 };
                 // exec plugin
-                http.router();
+                match http.router() {
+                    Ok(res) => http.response = res,
+                    Err(_) => {}
+                }
                 // response
+                http.response.make_raw();
                 let _ = w.write_all(&http.response.body[..]).await;
                 return Ok(http);
             }
@@ -73,8 +77,12 @@ impl Http {
                                 net_model: NetModel::EventPoll,
                             };
                             // exec plugin
-                            http.router();
+                            match http.router() {
+                                Ok(res) => http.response = res,
+                                Err(_) => {}
+                            }
                             // reponse
+                            http.response.make_raw();
                             let _ = stream.write_all(&http.response.raw[..]);
                             return Ok(http);
                         }
@@ -92,6 +100,7 @@ impl Http {
             }
         }
     }
+
     // is http protocol
     pub fn is(c: String) -> bool {
         let re = Regex::new(r"^(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE)\s(([/0-9a-zA-Z.]+)?(\?[0-9a-zA-Z&=]+)?)\s(HTTP/1.0|HTTP/1.1|HTTP/2.0)\r\n$").unwrap();
@@ -413,7 +422,6 @@ impl Response {
             req_path: String::default(),
             content_length: 0,
         };
-        response.handle_response();
         response
     }
     #[instrument]
@@ -500,13 +508,13 @@ impl Response {
         }
         Ok(response)
     }
-    fn handle_response(&mut self) {
+    fn make_raw(&mut self) {
         match self.req_method {
             Method::GET => {
-                self.handle_get_response();
+                self.make_get_raw();
             }
             Method::POST => {
-                self.handle_post_response();
+                self.make_post_raw();
             }
             Method::HEAD => {
                 //TODO
@@ -532,7 +540,7 @@ impl Response {
         }
     }
     /// handle get method response
-    fn handle_get_response(&mut self) {
+    fn make_get_raw(&mut self) {
         let resource = format!("{}{}", ROOT_PATH.lock().unwrap(), self.req_path);
         let mut res: String = String::default();
         match fs::read_to_string(Path::new(&resource)) {
@@ -555,14 +563,26 @@ impl Response {
         self.raw = res.as_bytes().to_vec();
     }
     /// handle post method response
-    fn handle_post_response(&mut self) {
-        let c = format!("response test response testresponse testresponse testresponse testresponse testresponse testresponse test");
-        let res = format!(
-            "HTTP/1.1 200 OK \r\nContent-Length:{} \r\n\r\n{}\r\n",
-            c.len(),
-            c
-        );
-        self.raw = res.as_bytes().to_vec()
+    fn make_post_raw(&mut self) {
+        // init content length
+        self.head
+            .insert("Content-Length".to_string(), self.body.len().to_string());
+        // raw data
+        let mut raw_data: Vec<u8> = vec![];
+        // head
+        let mut h = String::default();
+        h.push_str("HTTP/1.1 ");
+        h.push_str(&format!("{} {} \r\n", self.status_code, self.status_msg));
+        // head info
+        for (k, v) in self.head.iter_mut() {
+            h.push_str(&format!("{}:{} \r\n", k, v));
+        }
+        // delimiter
+        h.push_str("\r\n");
+        raw_data.extend(h.as_bytes().to_vec().iter());
+        // body
+        raw_data.extend(self.body.iter());
+        self.raw = raw_data;
     }
     pub fn push_head(&mut self, item: String) {
         let item_split: Vec<&str> = item.split(":").collect();

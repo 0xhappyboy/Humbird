@@ -1,4 +1,3 @@
-#![doc(html_logo_url = "https://github.com/0xhappyboy/humbird/blob/main/assets/imgs/logo.jpg")]
 /// this module is responsible for the underlying network communication
 pub mod config;
 /// this module is responsible for the underlying network communication

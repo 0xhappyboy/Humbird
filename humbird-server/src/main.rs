@@ -1,6 +1,10 @@
 use clap::Parser;
 use cli::cli::Cli;
-use humbird::{config::config::load_config, run};
+use humbird::{
+    config::config::load_config,
+    protocol::http::{Request, Response},
+    register_router_plugin, run,
+};
 
 mod cli;
 
