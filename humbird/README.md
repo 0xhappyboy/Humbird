@@ -9,12 +9,32 @@ humbird = "0.1.1"
 ```rust
 use humbird::{
     config::config::load_config,
-    run,
+    protocol::http::{Request, Response},
+    register_router_plugin, run,
 };
+
+fn test_1(req: Request, mut res: Response) -> Response {
+    res.body = "response.....".as_bytes().to_vec();
+    res
+}
+
+fn test_2(req: Request, mut res: Response) -> Response {
+    res.body = "response.....".as_bytes().to_vec();
+    res
+}
 
 fn main() {
     // load config
-    load_config("config-template.toml".to_string());
+    load_config(
+        "/Users/max/GitProject/Humbird/humbird-server/src/config-template.toml".to_string(),
+    );
+    // register routing plug-in
+    // path binding
+    register_router_plugin!(
+        "/".to_string() => test_1,
+        "/test".to_string() => test_2
+    );
+    // run humbird server
     run!();
 }
 ```
