@@ -46,8 +46,8 @@ impl Proxy {
             .await
             .unwrap();
         let (r, mut w) = t.into_split();
-        let _ = w.write_all(request.raw.as_bytes()).await;
-        match Response::read(r).await {
+        let _ = w.write_all(&request.raw()).await;
+        match Response::multi_thread_decode(r).await {
             Ok(response) => {
                 return Ok(Proxy {
                     request: request,

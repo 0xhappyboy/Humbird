@@ -8,7 +8,7 @@ use crate::{
 
 /// server config
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
-pub struct Server {
+pub struct ServerConfig {
     /// localhost server address
     addr: Option<String>,
     /// localhost listening port

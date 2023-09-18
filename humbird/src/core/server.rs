@@ -34,34 +34,36 @@ pub enum NetModel {
     EventPoll,
 }
 
-/// used to start services, requires asynchronous runtime
-///
-/// Example
-/// ```rust
-/// run!();
-/// ```
-#[macro_export]
-macro_rules! run {
-    () => {
-        match $crate::core::server::Server::new() {
-            Some(server) => {
-                server.start($crate::core::server::NetModel::EventPoll);
-            }
-            None => {
-                tracing::error!("server instance creation failed");
-            }
-        }
-    };
-}
-
 /// network services core abstraction
 pub struct Server {
     rt: Runtime,
 }
 
 impl Server {
+    /// used to start services, requires asynchronous runtime
+    ///
+    /// Example
+    /// ```rust
+    /// Server::start($crate::core::server::NetModel::EventPoll);
+    /// // or
+    /// Server::start($crate::core::server::NetModel::Multithread);
+    /// ```
+    pub fn run(model: NetModel) {
+        match Server::new() {
+            Some(s) => {
+                init_log();
+                match model {
+                    NetModel::Multithread => s.multi_thread(),
+                    NetModel::EventPoll => s.event_poll(),
+                }
+            }
+            None => {
+                tracing::error!("server instance creation failed");
+            }
+        }
+    }
     /// create a network service core abstraction instance
-    pub fn new() -> Option<Server> {
+    fn new() -> Option<Server> {
         let r = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(10)
             .enable_all()
@@ -74,21 +76,6 @@ impl Server {
             Err(_) => {
                 return None;
             }
-        }
-    }
-    /// used to start services, requires asynchronous runtime
-    ///
-    /// Example
-    /// ```rust
-    /// Server::start($crate::core::server::NetModel::EventPoll);
-    /// // or
-    /// Server::start($crate::core::server::NetModel::Multithread);
-    /// ```
-    pub fn start(&self, model: NetModel) {
-        init_log();
-        match model {
-            NetModel::Multithread => self.multi_thread(),
-            NetModel::EventPoll => self.event_poll(),
         }
     }
     /// handle multi thread
