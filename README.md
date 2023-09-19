@@ -47,15 +47,16 @@ target = ["0.0.0.0:80", ""0.0.0.0:8080", "0.0.0.0:8888"]
 mode = "WEIGHT"
 ```
 ## 🗓️ Plan
-1. Support for some common web protocols,e.g.HTTP 0.9、HTTP 1.0、HTTP 1.1、HTTP 2.0. :stopwatch:
-2. Support for load balancing strategies.:stopwatch:
-3. Support access to static resources.:stopwatch:
-4. Support related functions of the registration center.:stopwatch:
-5. Support distributed related functions such as cluster deployment and service discovery.:stopwatch:
-6. Supports dynamic configuration of network load for rational allocation of valuable network resources.:stopwatch:
-7. dash board.:stopwatch:
-8. look forward to more....
-
+| **Task** | **Status** | 
+| :-----| :----- |
+| Support for some common web protocols,e.g.HTTP 0.9、HTTP 1.0、HTTP 1.1、HTTP 2.0. | ⏲ |  
+| Support for load balancing strategies. | ⏲ |  
+| Support access to static resources. | ✅ |  
+| Support related functions of the registration center. | ⏲ |  
+| Support distributed related functions such as cluster deployment and service discovery. | ⏲ |
+| Supports dynamic configuration of network load for rational allocation of valuable network resources. | ⏲ |  
+| dash board. | ⏲ |  
+| look forward to more.... | ⏲ |  
 ## 🖼 Logo
 Soon ....
 ![Humbird](https://github.com/0xhappyboy/humbird/blob/main/assets/imgs/logo_2.jpg "Humbird Server")
