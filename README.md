@@ -1,6 +1,18 @@
 ## 🐦 Humbird
 the high-performance server,Let network transmission be like hummingbird flapping its wings.  
-**You Know, for Faster!**
+**You Know, for Faster!**  
+## 📚 Directory
+| directory | role | 
+| :-----| :----- |
+| humbird | server core library, which can be applied to any project |
+| humbird-server | server application |
+| humbird-jdk | server jdk, used for introduction and use in Java Maven projects, using JNI to link core libraries |
+| humbird-homepage | humbird homepage |
+| humbird-examples | code Cases Related to Humbird Server |  
+## 🚚 Crates
+```
+https://crates.io/crates/humbird
+```
 ## 👉 Command
 ```
 You Know, for Faster! 
