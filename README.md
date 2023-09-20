@@ -47,11 +47,12 @@ target = ["0.0.0.0:80", ""0.0.0.0:8080", "0.0.0.0:8888"]
 mode = "WEIGHT"
 ```
 ## 🗓️ Plan
-| **Task** | **Status** | 
+| **Plan** | **Status** | 
 | :-----| :----- |
 | Support for some common web protocols,e.g.HTTP 0.9、HTTP 1.0、HTTP 1.1、HTTP 2.0. | ⏲ |  
-| Support for load balancing strategies. | ⏲ |  
+| Support for load balancing strategies. | ✅ |  
 | Support access to static resources. | ✅ |  
+| Universal codec. | ⏲ |  
 | Support related functions of the registration center. | ⏲ |  
 | Support distributed related functions such as cluster deployment and service discovery. | ⏲ |
 | Supports dynamic configuration of network load for rational allocation of valuable network resources. | ⏲ |  
