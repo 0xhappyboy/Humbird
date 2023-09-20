@@ -64,7 +64,7 @@ impl Http {
     pub fn event_poll(
         event: &Event,
         m: &HashMap<Token, TcpStream>,
-        mut token: &Token,
+        token: &Token,
     ) -> Result<Http, String> {
         match m.get(token) {
             Some(mut stream) => {
@@ -126,7 +126,7 @@ impl Http {
 }
 
 // http protocol method encapsulation
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Method {
     DEFAULT,
     GET,
@@ -155,6 +155,7 @@ pub struct Request {
     method: Method,
     path: String,
     protocol: String,
+    params: HashMap<String, String>,
     cookie: HashMap<String, String>,
     head: HashMap<String, String>,
     body: Vec<u8>,
@@ -181,11 +182,14 @@ impl Request {
             method: Method::new(items[0]),
             path: items[1].to_string(),
             protocol: items[2].to_string().replace("\r\n", ""),
+            params: HashMap::default(),
             cookie: HashMap::default(),
             head: HashMap::default(),
             body: vec![],
             raw: vec![],
         };
+        // handle request params
+        req.handle_params();
         loop {
             match delimiter {
                 Delimiter::HEAD => {
@@ -254,6 +258,7 @@ impl Request {
             method: Method::new(items[0]),
             path: items[1].to_string(),
             protocol: items[2].to_string().replace("\r\n", ""),
+            params: HashMap::default(),
             cookie: HashMap::default(),
             head: HashMap::default(),
             body: vec![],
@@ -351,6 +356,10 @@ impl Request {
             });
         }
     }
+    /// request method
+    pub fn method(&self) -> Method {
+        self.method
+    }
     /// convert request body structure to http protocol request structure string
     ///
     /// Example
@@ -369,6 +378,8 @@ impl Request {
         let re = Regex::new(r"^(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE)\s(([/0-9a-zA-Z.]+)?(\?[0-9a-zA-Z&=]+)?)\s(HTTP/1.0|HTTP/1.1|HTTP/2.0)\r\n$").unwrap();
         re.is_match(&r)
     }
+    /// request parameter handle
+    fn handle_params(&self) {}
 }
 
 // generic response wrapper
@@ -399,8 +410,35 @@ impl Response {
             req_path: String::default(),
             content_length: 0,
         };
+        // GET request default processing
+        if Method::GET.eq(&request.method) {
+            match ROOT_PATH.lock() {
+                Ok(p) => {
+                    let r_path = &request.path;
+                    let s_file = p.to_string() + &r_path[1..r_path.len()];
+                    // static file
+                    match fs::File::open(Path::new(&s_file)) {
+                        Ok(mut f) => match f.metadata() {
+                            Ok(meta) => {
+                                let mut sf_buf = vec![0u8; meta.len().try_into().unwrap()];
+                                let _ = f.read_to_end(&mut sf_buf);
+                                response.body = sf_buf;
+                            }
+                            Err(_) => {
+                                response.body = "<h1>404 Not Found</h1>".as_bytes().to_vec();
+                            }
+                        },
+                        Err(_) => {
+                            response.body = "<h1>404 Not Found</h1>".as_bytes().to_vec();
+                        }
+                    }
+                }
+                Err(e) => {}
+            }
+        }
         response
     }
+    ///
     #[instrument]
     pub async fn multi_thread_decode(r: OwnedReadHalf) -> Result<Self, String> {
         use tokio::io::AsyncBufReadExt;

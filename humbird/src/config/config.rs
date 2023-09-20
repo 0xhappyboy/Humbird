@@ -6,38 +6,6 @@ use crate::{
     core::server::{ROOT_PATH, SERVER_LISTENING_PORT},
 };
 
-/// server config
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
-pub struct ServerConfig {
-    /// localhost server address
-    addr: Option<String>,
-    /// localhost listening port
-    port: Option<u32>,
-    /// static resource root directory
-    webapps: Option<String>,
-    plugins: Option<String>,
-}
-
-/// plugins manage
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
-pub struct Plugins {
-    path: Option<Vec<String>>,
-}
-
-/// proxy
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
-pub struct Porxy {
-    /// poxy host address
-    ///
-    /// ```
-    /// [
-    /// ip:port,
-    /// ip:port,
-    /// ]
-    /// ```
-    host: Option<Vec<String>>,
-}
-
 /// load confin file
 pub fn load_config(path: String) {
     let file = fs::File::open(path);
@@ -56,7 +24,7 @@ pub fn load_config(path: String) {
                             .unwrap()
                             .push_str(&p.to_string());
                     }
-                    None => todo!(),
+                    None => {},
                 }
             }
             // directory
@@ -66,7 +34,7 @@ pub fn load_config(path: String) {
                         ROOT_PATH.lock().unwrap().clear();
                         ROOT_PATH.lock().unwrap().push_str(&p.to_string());
                     }
-                    None => todo!(),
+                    None => {},
                 }
             }
             // porxy

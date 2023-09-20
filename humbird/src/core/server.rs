@@ -44,9 +44,9 @@ impl Server {
     ///
     /// Example
     /// ```rust
-    /// Server::start($crate::core::server::NetModel::EventPoll);
+    /// Server::run(:NetModel::EventPoll);
     /// // or
-    /// Server::start($crate::core::server::NetModel::Multithread);
+    /// Server::run(NetModel::Multithread);
     /// ```
     pub fn run(model: NetModel) {
         match Server::new() {
