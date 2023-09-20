@@ -1,4 +1,4 @@
-## 🐦 Humbird
+## <center>🐦 Humbird </center>  
 the high-performance server,Let network transmission be like hummingbird flapping its wings.  
 **You Know, for Faster!**  
 ## 📚 Directory
@@ -58,6 +58,3 @@ mode = "WEIGHT"
 | Supports dynamic configuration of network load for rational allocation of valuable network resources. | ⏲ |  
 | dash board. | ⏲ |  
 | look forward to more.... | ⏲ |  
-## 🖼 Logo
-Soon ....
-![Humbird](https://github.com/0xhappyboy/humbird/blob/main/assets/imgs/logo_2.jpg "Humbird Server")
