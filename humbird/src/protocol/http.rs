@@ -160,6 +160,7 @@ pub struct Request {
     head: HashMap<String, String>,
     body: Vec<u8>,
     raw: Vec<u8>,
+    file: Option<File>,
 }
 
 impl Request {
@@ -187,6 +188,7 @@ impl Request {
             head: HashMap::default(),
             body: vec![],
             raw: vec![],
+            file: None,
         };
         // handle request params
         req.handle_params();
@@ -263,6 +265,7 @@ impl Request {
             head: HashMap::default(),
             body: vec![],
             raw: vec![],
+            file: None,
         };
         loop {
             match delimiter {
@@ -379,7 +382,18 @@ impl Request {
         re.is_match(&r)
     }
     /// request parameter handle
-    fn handle_params(&self) {}
+    fn handle_params(&mut self) {
+        let path_array: Vec<&str> = self.path.split("?").collect();
+        if path_array.len() > 0 {
+            let p: Vec<&str> = path_array[1].split("&").collect();
+            if p.len() > 0 {
+                let _ = p.iter().map(|&e| {
+                    let i: Vec<&str> = e.split("=").collect();
+                    self.params.insert(i[0].to_string(), i[1].to_string());
+                });
+            }
+        }
+    }
 }
 
 // generic response wrapper
@@ -433,7 +447,7 @@ impl Response {
                         }
                     }
                 }
-                Err(e) => {}
+                Err(_e) => {}
             }
         }
         response
@@ -588,3 +602,14 @@ impl Response {
         re.is_match(&r)
     }
 }
+
+/// http request file abstract
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct File {
+    name: String,
+    size: u64,
+    range: u64,
+    body: Vec<u8>,
+}
+
+impl File {}
