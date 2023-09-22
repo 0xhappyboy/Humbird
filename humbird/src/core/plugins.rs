@@ -5,7 +5,7 @@ use std::sync::Mutex;
 
 lazy_static! {
     pub static ref ROUTER_TABLE: Mutex<HashMap<String, HttpRequestProcess>> = {
-        let mut map = HashMap::new();
+        let map = HashMap::new();
         Mutex::new(map)
     };
 }
@@ -15,7 +15,11 @@ lazy_static! {
 /// Example
 /// ```rust
 /// // register plugin
-/// register_router_plugin!("/path".to_string() => function_name);
+/// fn router_function(req: Request, mut res: Response) -> Response {
+/// // ......
+/// res
+/// }
+/// register_router_plugin!("/path" => router_function);
 /// // run humbird server
 /// run!();
 /// ```
@@ -23,7 +27,7 @@ lazy_static! {
 macro_rules! register_router_plugin {
     ($($path:expr => $process:expr),*) => {
         $(
-            $crate::plugins::web::ROUTER_TABLE.lock().unwrap().insert($path, $process);
+            $crate::core::plugins::ROUTER_TABLE.lock().unwrap().insert($path.to_string(), $process);
         )*;
     };
 }

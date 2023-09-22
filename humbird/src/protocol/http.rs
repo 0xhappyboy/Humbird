@@ -10,9 +10,9 @@ use regex::Regex;
 use tokio::{io::AsyncWriteExt, net::tcp::OwnedReadHalf};
 use tracing::{error, instrument};
 
-use crate::{
-    core::server::{NetModel, ROOT_PATH},
-    plugins::web::ROUTER_TABLE,
+use crate::core::{
+    plugins::ROUTER_TABLE,
+    server::{NetModel, ROOT_PATH},
 };
 
 /// http request process

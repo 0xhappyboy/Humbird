@@ -1,17 +1,27 @@
 use clap::Parser;
 use cli::cli::Cli;
 use humbird::{
-    config::config::load_config,
+    core::server::Server,
     protocol::http::{Request, Response},
-    register_router_plugin, run,
+    register_router_plugin,
 };
 
 mod cli;
 
+fn test(req: Request, mut res: Response) -> Response {
+    res
+}
+
 fn main() {
-    // load config
-    //load_config("/Users/max/GitProject/Humbird/humbird-server/src/config-template.toml".to_string());
     // cli
     //let cli = Cli::parse();
-    run!();
+
+    register_router_plugin!(
+        "/"=>test
+    );
+
+    Server::config_run(
+        humbird::core::server::NetModel::EventPoll,
+        "config-template.toml",
+    );
 }

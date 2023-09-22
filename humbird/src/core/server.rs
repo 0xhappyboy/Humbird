@@ -40,7 +40,19 @@ pub struct Server {
 }
 
 impl Server {
-    /// used to start services, requires asynchronous runtime
+    /// start server,based on configuration files
+    ///
+    /// Example
+    /// ``` rust
+    /// Server::run(:NetModel::EventPoll,"/config.toml");
+    /// // or
+    /// Server::run(NetModel::Multithread,"/config.toml");
+    /// ```
+    pub fn config_run(model: NetModel, config_file_path: &str) {
+        Server::config(Some(config_file_path.to_string()));
+        Server::run(model);
+    }
+    /// start server
     ///
     /// Example
     /// ```rust
@@ -61,6 +73,10 @@ impl Server {
                 tracing::error!("server instance creation failed");
             }
         }
+    }
+    /// handle server global configurable constants, based on configuration files
+    fn config(config_file_path: Option<String>) {
+        load_config(config_file_path);
     }
     /// create a network service core abstraction instance
     fn new() -> Option<Server> {
@@ -93,7 +109,7 @@ impl Server {
                 let (stream, socket) = l.accept().await.unwrap();
                 info!("new visitor,ip:{}", socket.ip());
                 match Http::multi_thread(stream).await {
-                    Ok(http) => {}
+                    Ok(_http) => {}
                     Err(_) => {}
                 }
             }
@@ -163,7 +179,7 @@ impl Server {
                                     match connections.get(&token) {
                                         Some(stream) => {
                                             match Http::event_poll(&event, &connections, &token) {
-                                                Ok(http) => {}
+                                                Ok(_http) => {}
                                                 Err(_) => {}
                                             }
                                         }
@@ -205,6 +221,8 @@ pub fn init_log() {
 }
 
 use prettytable::{row, Table};
+
+use super::config::load_config;
 
 pub fn boot_info_string() -> String {
     let logo: &str = "

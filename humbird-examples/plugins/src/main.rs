@@ -1,16 +1,21 @@
-use humbird::protocol::http::Request;
-use humbird::protocol::http::Response;
-use humbird::register_router_plugin;
-use humbird::run;
-// plugin function
-fn test(mut request: Request, mut response: Response) -> Response {
-    // here you can modify a and b
-    return response;
+use humbird::{
+    core::server::Server,
+    protocol::http::{Request, Response},
+    register_router_plugin,
+};
+
+fn test(req: Request, mut res: Response) -> Response {
+    res.set_body("rewrite");
+    res
 }
 
 fn main() {
-    // register plugin
-    register_router_plugin!("/test".to_string() => test);
-    // run humbird server
-    run!();
+    // register router
+    register_router_plugin!(
+        "/"=>test
+    );
+    Server::config_run(
+        humbird::core::server::NetModel::EventPoll,
+        "config-template.toml",
+    );
 }
