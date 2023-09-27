@@ -1,7 +1,7 @@
 use humbird::{
     core::server::Server,
     protocol::http::{Request, Response},
-    register_router_plugin,
+    router,
 };
 
 fn test(req: Request, mut res: Response) -> Response {
@@ -11,11 +11,8 @@ fn test(req: Request, mut res: Response) -> Response {
 
 fn main() {
     // register router
-    register_router_plugin!(
+    router!(
         "/"=>test
     );
-    Server::config_run(
-        humbird::core::server::NetModel::EventPoll,
-        "config-template.toml",
-    );
+    Server::config_run("config-template.toml");
 }

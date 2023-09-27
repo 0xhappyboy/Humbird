@@ -2,14 +2,9 @@
 use crate::protocol::http::Http;
 use chrono::Local;
 use lazy_static::lazy_static;
-use mio::{event::Event, Events, Interest, Poll, Token};
-use std::{
-    collections::HashMap,
-    io::{self, Write},
-    sync::Mutex,
-};
-use tokio::{net::TcpListener, runtime::Runtime};
-use tracing::info;
+use mio::{Events, Interest, Poll, Token};
+use std::{collections::HashMap, sync::Mutex};
+use tokio::runtime::Runtime;
 use tracing::Level;
 use tracing_subscriber::fmt::{format::Writer, time::FormatTime};
 /// server listening address
@@ -27,12 +22,6 @@ lazy_static! {
 const HUMBIRD_SERVER_TOKEN: Token = Token(0);
 // event pool count
 const EVENT_POOL_COUNT: usize = 1024;
-// network model
-#[derive(Debug)]
-pub enum NetModel {
-    Multithread,
-    EventPoll,
-}
 
 /// network services core abstraction
 pub struct Server {
@@ -48,9 +37,9 @@ impl Server {
     /// // or
     /// Server::run(NetModel::Multithread,"/config.toml");
     /// ```
-    pub fn config_run(model: NetModel, config_file_path: &str) {
+    pub fn config_run(config_file_path: &str) {
         Server::config(Some(config_file_path.to_string()));
-        Server::run(model);
+        Server::run();
     }
     /// start server
     ///
@@ -60,14 +49,11 @@ impl Server {
     /// // or
     /// Server::run(NetModel::Multithread);
     /// ```
-    pub fn run(model: NetModel) {
+    pub fn run() {
         match Server::new() {
             Some(s) => {
                 init_log();
-                match model {
-                    NetModel::Multithread => s.multi_thread(),
-                    NetModel::EventPoll => s.event_poll(),
-                }
+                s.event_poll();
             }
             None => {
                 tracing::error!("server instance creation failed");
@@ -93,27 +79,6 @@ impl Server {
                 return None;
             }
         }
-    }
-    /// handle multi thread
-    fn multi_thread(&self) {
-        self.rt.block_on(async {
-            // tcp listener
-            let l = TcpListener::bind(format!(
-                "{}:{}",
-                SERVER_LISTENING_ADDR,
-                SERVER_LISTENING_PORT.lock().unwrap()
-            ))
-            .await
-            .unwrap();
-            loop {
-                let (stream, socket) = l.accept().await.unwrap();
-                info!("new visitor,ip:{}", socket.ip());
-                match Http::multi_thread(stream).await {
-                    Ok(_http) => {}
-                    Err(_) => {}
-                }
-            }
-        });
     }
     /// handle evet poll
     fn event_poll(&self) {
@@ -147,7 +112,7 @@ impl Server {
                             HUMBIRD_SERVER_TOKEN => {
                                 let (mut connection, _address) = match server.accept() {
                                     Ok((connection, address)) => (connection, address),
-                                    Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                                         break;
                                     }
                                     Err(_e) => {
@@ -168,22 +133,32 @@ impl Server {
                                     )
                                     .unwrap();
                                 connections.insert(token, connection);
-                                match Http::event_poll(&event, &connections, &token) {
-                                    Ok(http) => {}
-                                    Err(_) => {}
+                                match Http::new(&event, &connections, &token) {
+                                    Ok(_http) => {
+                                        continue;
+                                    }
+                                    Err(_) => {
+                                        continue;
+                                    }
                                 }
                             }
                             // reuse
                             token => {
                                 if connections.contains_key(&token) {
                                     match connections.get(&token) {
-                                        Some(stream) => {
-                                            match Http::event_poll(&event, &connections, &token) {
-                                                Ok(_http) => {}
-                                                Err(_) => {}
+                                        Some(_stream) => {
+                                            match Http::new(&event, &connections, &token) {
+                                                Ok(_http) => {
+                                                    continue;
+                                                }
+                                                Err(_) => {
+                                                    continue;
+                                                }
                                             }
                                         }
-                                        None => {}
+                                        None => {
+                                            continue;
+                                        }
                                     }
                                 }
                             }
@@ -191,7 +166,9 @@ impl Server {
                     }
                 }
             }
-            Err(_) => {}
+            Err(_) => {
+                self.event_poll();
+            }
         }
     }
 }
@@ -213,7 +190,7 @@ pub fn init_log() {
         .with_timer(LocalTimer);
     tracing_subscriber::fmt()
         .with_max_level(Level::TRACE)
-        .with_writer(io::stdout)
+        .with_writer(std::io::stdout)
         .with_writer(non_blocking)
         .with_ansi(false)
         .event_format(format)

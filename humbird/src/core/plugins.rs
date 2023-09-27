@@ -19,12 +19,12 @@ lazy_static! {
 /// // ......
 /// res
 /// }
-/// register_router_plugin!("/path" => router_function);
+/// router!("/path" => router_function);
 /// // run humbird server
 /// run!();
 /// ```
 #[macro_export]
-macro_rules! register_router_plugin {
+macro_rules! router {
     ($($path:expr => $process:expr),*) => {
         $(
             $crate::core::plugins::ROUTER_TABLE.lock().unwrap().insert($path.to_string(), $process);

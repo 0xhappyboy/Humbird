@@ -7,13 +7,10 @@ use std::{
 
 use mio::{event::Event, net::TcpStream, Token};
 use regex::Regex;
-use tokio::{io::AsyncWriteExt, net::tcp::OwnedReadHalf};
+use tokio::net::tcp::OwnedReadHalf;
 use tracing::{error, instrument};
 
-use crate::core::{
-    plugins::ROUTER_TABLE,
-    server::{NetModel, ROOT_PATH},
-};
+use crate::core::{plugins::ROUTER_TABLE, server::ROOT_PATH};
 
 /// http request process
 pub type HttpRequestProcess = fn(Request, Response) -> Response;
@@ -30,70 +27,38 @@ pub enum Delimiter {
 pub struct Http {
     pub request: Request,
     pub response: Response,
-    pub net_model: NetModel,
 }
 
 impl Http {
-    pub async fn multi_thread(stream: tokio::net::TcpStream) -> Result<Http, String> {
-        let (r, mut w) = stream.into_split();
-        match Request::multi_thread_decode(r).await {
-            Ok(request) => {
-                let response = Response::new(&request);
-                let mut http = Http {
-                    request: request,
-                    response: response,
-                    net_model: NetModel::Multithread,
-                };
-                // exec plugin
-                match http.router() {
-                    Ok(res) => http.response = res,
-                    Err(_) => {}
-                }
-                // response
-                http.response.make_raw();
-                let _ = w.write_all(&http.response.body[..]).await;
-                return Ok(http);
-            }
-            Err(_e) => {
-                error!("http request processing failed");
-                return Err("http request processing failed".to_string());
-            }
-        }
-    }
     #[instrument]
-    pub fn event_poll(
+    pub fn new(
         event: &Event,
         m: &HashMap<Token, TcpStream>,
         token: &Token,
     ) -> Result<Http, String> {
         match m.get(token) {
             Some(mut stream) => {
-                if event.is_readable() {
-                    match Request::event_poll_decode(stream) {
-                        Ok(request) => {
-                            let res = Response::new(&request);
-                            let mut http = Http {
-                                request: request,
-                                response: res,
-                                net_model: NetModel::EventPoll,
-                            };
-                            // exec plugin
-                            match http.router() {
-                                Ok(res) => http.response = res,
-                                Err(_) => {}
-                            }
-                            // reponse
-                            http.response.make_raw();
-                            let _ = stream.write_all(&http.response.raw[..]);
-                            return Ok(http);
+                match Request::decode(stream) {
+                    Ok(request) => {
+                        let res = Response::new(&request);
+                        let mut http = Http {
+                            request: request,
+                            response: res,
+                        };
+                        // exec plugin
+                        match http.router() {
+                            Ok(res) => http.response = res,
+                            Err(_) => {}
                         }
-                        Err(_e) => {
-                            error!("http request processing failed");
-                            return Err("http request processing failed".to_string());
-                        }
+                        // reponse
+                        http.response.make_raw();
+                        let _ = stream.write_all(&http.response.raw[..]);
+                        return Ok(http);
                     }
-                } else {
-                    return Err("the event is not readable".to_string());
+                    Err(_e) => {
+                        error!("http request processing failed");
+                        return Err("http request processing failed".to_string());
+                    }
                 }
             }
             None => {
@@ -101,7 +66,6 @@ impl Http {
             }
         }
     }
-
     // is http protocol
     pub fn is(c: String) -> bool {
         let re = Regex::new(r"^(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE)\s(([/0-9a-zA-Z.]+)?(\?[0-9a-zA-Z&=]+)?)\s(HTTP/1.0|HTTP/1.1|HTTP/2.0)\r\n$").unwrap();
@@ -165,86 +129,7 @@ pub struct Request {
 
 impl Request {
     #[instrument]
-    pub async fn multi_thread_decode(r: OwnedReadHalf) -> Result<Self, String> {
-        use tokio::io::AsyncBufReadExt;
-        use tokio::io::AsyncReadExt;
-        use tokio::io::BufReader;
-        use tokio::net::tcp::OwnedReadHalf;
-        let mut protocol_line = String::default();
-        let mut r_buf: BufReader<OwnedReadHalf> = BufReader::new(r);
-        let _ = r_buf.read_line(&mut protocol_line).await;
-        if !Request::is(protocol_line.to_string()) {
-            return Err("http request processing failed".to_string());
-        }
-        let items: Vec<&str> = protocol_line.split(" ").collect();
-        let mut req_str_buf = String::default();
-        let mut delimiter = Delimiter::HEAD;
-        let mut req = Request {
-            method: Method::new(items[0]),
-            path: items[1].to_string(),
-            protocol: items[2].to_string().replace("\r\n", ""),
-            params: HashMap::default(),
-            cookie: HashMap::default(),
-            head: HashMap::default(),
-            body: vec![],
-            raw: vec![],
-            file: None,
-        };
-        // handle request params
-        req.handle_params();
-        loop {
-            match delimiter {
-                Delimiter::HEAD => {
-                    // handle head
-                    match r_buf.read_line(&mut req_str_buf).await {
-                        Ok(0) => break,
-                        Ok(_n) => {
-                            let c = req_str_buf.drain(..).as_str().to_string();
-                            req.raw.extend(c.as_bytes());
-                            if c.eq("\r\n") {
-                                delimiter = Delimiter::BODY;
-                                continue;
-                            };
-                            // push request head
-                            req.append_head_info(c);
-                        }
-                        Err(_) => break,
-                    }
-                }
-                Delimiter::BODY => {
-                    match req.head.get("Content-Length") {
-                        Some(length_str) => {
-                            match length_str.parse::<u64>() {
-                                Ok(length) => {
-                                    let mut buf = vec![
-                                        0u8;
-                                        match length.try_into() {
-                                            Ok(l) => l,
-                                            Err(_) => 0,
-                                        }
-                                    ];
-                                    match r_buf.read(&mut buf).await {
-                                        Ok(0) => break,
-                                        Ok(_s) => {
-                                            // save request body
-                                            req.body = buf;
-                                            break;
-                                        }
-                                        Err(_) => break,
-                                    }
-                                }
-                                Err(_) => break,
-                            };
-                        }
-                        None => break,
-                    }
-                }
-            }
-        }
-        Ok(req)
-    }
-    #[instrument]
-    pub fn event_poll_decode(stream: &mio::net::TcpStream) -> Result<Self, String> {
+    pub fn decode(stream: &mio::net::TcpStream) -> Result<Self, String> {
         use std::io::BufRead;
         use std::io::BufReader;
         let mut r_buf = BufReader::new(stream);
@@ -377,7 +262,7 @@ impl Request {
         self.raw.clone()
     }
     /// determine whether it is an http request
-    pub fn is(r: String) -> bool {
+    fn is(r: String) -> bool {
         let re = Regex::new(r"^(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE)\s(([/0-9a-zA-Z.]+)?(\?[0-9a-zA-Z&=]+)?)\s(HTTP/1.0|HTTP/1.1|HTTP/2.0)\r\n$").unwrap();
         re.is_match(&r)
     }
@@ -452,9 +337,9 @@ impl Response {
         }
         response
     }
-    ///
+    /// async decode
     #[instrument]
-    pub async fn multi_thread_decode(r: OwnedReadHalf) -> Result<Self, String> {
+    pub async fn async_decode(r: OwnedReadHalf) -> Result<Self, String> {
         use tokio::io::AsyncBufReadExt;
         use tokio::io::AsyncReadExt;
         use tokio::io::BufReader;
