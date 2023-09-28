@@ -1,13 +1,16 @@
 use std::{
     collections::HashMap,
     fs,
-    io::{self, Read, Write},
+    io::{self, BufRead, Read, Write},
     path::Path,
 };
 
 use mio::{event::Event, net::TcpStream, Token};
 use regex::Regex;
-use tokio::net::tcp::OwnedReadHalf;
+use tokio::{
+    io::{AsyncBufReadExt, AsyncReadExt, BufReader},
+    net::tcp::OwnedReadHalf,
+};
 use tracing::{error, instrument};
 
 use crate::core::{plugins::ROUTER_TABLE, server::ROOT_PATH};
@@ -122,6 +125,7 @@ pub struct Request {
     params: HashMap<String, String>,
     cookie: HashMap<String, String>,
     head: HashMap<String, String>,
+    multipart: HashMap<String, String>,
     body: Vec<u8>,
     raw: Vec<u8>,
     file: Option<File>,
@@ -130,9 +134,7 @@ pub struct Request {
 impl Request {
     #[instrument]
     pub fn decode(stream: &mio::net::TcpStream) -> Result<Self, String> {
-        use std::io::BufRead;
-        use std::io::BufReader;
-        let mut r_buf = BufReader::new(stream);
+        let mut r_buf = std::io::BufReader::new(stream);
         let mut protocol_line = String::default();
         let _ = r_buf.read_line(&mut protocol_line);
         if !Request::is(protocol_line.to_string()) {
@@ -148,6 +150,7 @@ impl Request {
             params: HashMap::default(),
             cookie: HashMap::default(),
             head: HashMap::default(),
+            multipart: HashMap::default(),
             body: vec![],
             raw: vec![],
             file: None,
@@ -177,39 +180,85 @@ impl Request {
                     }
                 }
                 Delimiter::BODY => {
-                    match req.head.get("Content-Length") {
-                        Some(length_str) => {
-                            match length_str.parse::<u64>() {
-                                Ok(length) => {
-                                    let mut buf = vec![
-                                        0u8;
-                                        match length.try_into() {
-                                            Ok(l) => l,
-                                            Err(_) => 0,
-                                        }
-                                    ];
-                                    match r_buf.read(&mut buf) {
-                                        Ok(0) => break,
-                                        Ok(_s) => {
-                                            // save request body
-                                            req.body = buf;
-                                            break;
-                                        }
-                                        Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
-                                            break
-                                        }
-                                        Err(ref err)
-                                            if err.kind() == io::ErrorKind::Interrupted =>
-                                        {
-                                            break
-                                        }
-                                        Err(_) => break,
-                                    }
-                                }
-                                Err(_) => break,
-                            };
+                    if (|| -> bool {
+                        let ct: Vec<&str> = match req.head.get("Content-Type") {
+                            Some(t) => t,
+                            None => "",
                         }
-                        None => break,
+                        .split(";")
+                        .collect();
+                        if ct.len() == 0 {
+                            return false;
+                        };
+                        match ct.get(0) {
+                            Some(t) => {
+                                if t.to_string().eq("multipart/form-data") {
+                                    for i in 1..ct.len() {
+                                        match ct.get(i) {
+                                            Some(v) => {
+                                                let vs: Vec<&str> = v.split("=").collect();
+                                                if vs.len() > 1 {
+                                                    req.multipart.insert(
+                                                        match vs.get(0) {
+                                                            Some(vs_k) => vs_k.to_string(),
+                                                            None => continue,
+                                                        },
+                                                        match vs.get(1) {
+                                                            Some(vs_v) => vs_v.to_string(),
+                                                            None => continue,
+                                                        },
+                                                    );
+                                                }
+                                            }
+                                            None => continue,
+                                        };
+                                    }
+                                    return true;
+                                }
+                            }
+                            None => return false,
+                        };
+                        return false;
+                    })() {
+                        // multipart data handle
+                        break;
+                    } else {
+                        match req.head.get("Content-Length") {
+                            Some(length_str) => {
+                                match length_str.parse::<u64>() {
+                                    Ok(length) => {
+                                        let mut buf = vec![
+                                            0u8;
+                                            match length.try_into() {
+                                                Ok(l) => l,
+                                                Err(_) => 0,
+                                            }
+                                        ];
+                                        match r_buf.read(&mut buf) {
+                                            Ok(0) => break,
+                                            Ok(_s) => {
+                                                // save request body
+                                                req.body = buf;
+                                                break;
+                                            }
+                                            Err(ref err)
+                                                if err.kind() == io::ErrorKind::WouldBlock =>
+                                            {
+                                                break
+                                            }
+                                            Err(ref err)
+                                                if err.kind() == io::ErrorKind::Interrupted =>
+                                            {
+                                                break
+                                            }
+                                            Err(_) => break,
+                                        }
+                                    }
+                                    Err(_) => break,
+                                };
+                            }
+                            None => break,
+                        }
                     }
                 }
             }
@@ -340,10 +389,6 @@ impl Response {
     /// async decode
     #[instrument]
     pub async fn async_decode(r: OwnedReadHalf) -> Result<Self, String> {
-        use tokio::io::AsyncBufReadExt;
-        use tokio::io::AsyncReadExt;
-        use tokio::io::BufReader;
-        use tokio::net::tcp::OwnedReadHalf;
         let mut protocol_line = String::default();
         let mut r_buf: BufReader<OwnedReadHalf> = BufReader::new(r);
         let _ = r_buf.read_line(&mut protocol_line).await;
