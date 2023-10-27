@@ -33,9 +33,7 @@ impl Server {
     ///
     /// Example
     /// ``` rust
-    /// Server::run(:NetModel::EventPoll,"/config.toml");
-    /// // or
-    /// Server::run(NetModel::Multithread,"/config.toml");
+    /// Server::config_run("/config.toml");
     /// ```
     pub fn config_run(config_file_path: &str) {
         Server::config(Some(config_file_path.to_string()));
@@ -45,13 +43,12 @@ impl Server {
     ///
     /// Example
     /// ```rust
-    /// Server::run(:NetModel::EventPoll);
-    /// // or
-    /// Server::run(NetModel::Multithread);
+    /// Server::run();
     /// ```
     pub fn run() {
         match Server::new() {
             Some(s) => {
+                // initialize the log system
                 init_log();
                 s.event_poll();
             }
@@ -82,7 +79,6 @@ impl Server {
     }
     /// handle evet poll
     fn event_poll(&self) {
-        use mio::net::TcpListener;
         match Poll::new() {
             Ok(mut poll) => {
                 let mut events = Events::with_capacity(EVENT_POOL_COUNT);
@@ -93,76 +89,86 @@ impl Server {
                 )
                 .parse()
                 .unwrap();
-                let mut server = TcpListener::bind(address).unwrap();
-                poll.registry()
-                    .register(
-                        &mut server,
-                        HUMBIRD_SERVER_TOKEN,
-                        Interest::READABLE.add(Interest::WRITABLE),
-                    )
-                    .unwrap();
-                // connection pool mapping
-                let mut connections = HashMap::new();
-                let mut unique_token = Token(HUMBIRD_SERVER_TOKEN.0 + 1);
-                loop {
-                    let _ = poll.poll(&mut events, None).unwrap();
-                    for event in events.iter() {
-                        match event.token() {
-                            // a new connection
-                            HUMBIRD_SERVER_TOKEN => {
-                                let (mut connection, _address) = match server.accept() {
-                                    Ok((connection, address)) => (connection, address),
-                                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                                        break;
+                let mut server = mio::net::TcpListener::bind(address).unwrap();
+                match poll.registry().register(
+                    &mut server,
+                    HUMBIRD_SERVER_TOKEN,
+                    Interest::READABLE.add(Interest::WRITABLE),
+                ) {
+                    Ok(_) => {
+                        // connection pool mapping
+                        let mut connections = HashMap::new();
+                        let mut unique_token = Token(HUMBIRD_SERVER_TOKEN.0 + 1);
+                        // launch info
+                        println!("{}", boot_info_string(true));
+                        loop {
+                            let _ = poll.poll(&mut events, None).unwrap();
+                            for event in events.iter() {
+                                match event.token() {
+                                    // a new connection
+                                    HUMBIRD_SERVER_TOKEN => {
+                                        let (mut connection, _address) = match server.accept() {
+                                            Ok((connection, address)) => (connection, address),
+                                            Err(e)
+                                                if e.kind() == std::io::ErrorKind::WouldBlock =>
+                                            {
+                                                break;
+                                            }
+                                            Err(_e) => {
+                                                break;
+                                            }
+                                        };
+                                        // the unique token of the tcp link
+                                        let token = {
+                                            let next = unique_token.0;
+                                            unique_token.0 += 1;
+                                            Token(next)
+                                        };
+                                        poll.registry()
+                                            .register(
+                                                &mut connection,
+                                                token,
+                                                Interest::READABLE.add(Interest::WRITABLE),
+                                            )
+                                            .unwrap();
+                                        connections.insert(token, connection);
+                                        match Http::new(&event, &connections, &token) {
+                                            Ok(_http) => {
+                                                continue;
+                                            }
+                                            Err(_) => {
+                                                continue;
+                                            }
+                                        }
                                     }
-                                    Err(_e) => {
-                                        break;
-                                    }
-                                };
-                                // the unique token of the tcp link
-                                let token = {
-                                    let next = unique_token.0;
-                                    unique_token.0 += 1;
-                                    Token(next)
-                                };
-                                poll.registry()
-                                    .register(
-                                        &mut connection,
-                                        token,
-                                        Interest::READABLE.add(Interest::WRITABLE),
-                                    )
-                                    .unwrap();
-                                connections.insert(token, connection);
-                                match Http::new(&event, &connections, &token) {
-                                    Ok(_http) => {
-                                        continue;
-                                    }
-                                    Err(_) => {
-                                        continue;
-                                    }
-                                }
-                            }
-                            // reuse
-                            token => {
-                                if connections.contains_key(&token) {
-                                    match connections.get(&token) {
-                                        Some(_stream) => {
-                                            match Http::new(&event, &connections, &token) {
-                                                Ok(_http) => {
-                                                    continue;
+                                    // reuse
+                                    token => {
+                                        if connections.contains_key(&token) {
+                                            match connections.get(&token) {
+                                                Some(_stream) => {
+                                                    match Http::new(&event, &connections, &token) {
+                                                        Ok(_http) => {
+                                                            continue;
+                                                        }
+                                                        Err(_) => {
+                                                            continue;
+                                                        }
+                                                    }
                                                 }
-                                                Err(_) => {
+                                                None => {
                                                     continue;
                                                 }
                                             }
-                                        }
-                                        None => {
-                                            continue;
                                         }
                                     }
                                 }
                             }
                         }
+                    }
+                    Err(_) => {
+                        // launch info
+                        println!("{}", boot_info_string(false));
+                        return;
                     }
                 }
             }
@@ -201,7 +207,7 @@ use prettytable::{row, Table};
 
 use super::config::load_config;
 
-pub fn boot_info_string() -> String {
+pub fn boot_info_string(status: bool) -> String {
     let logo: &str = "
 ██░ ██  █    ██  ███▄ ▄███▓ ▄▄▄▄    ██▓ ██▀███  ▓█████▄ 
 ▓██░ ██▒ ██  ▓██▒▓██▒▀█▀ ██▒▓█████▄ ▓██▒▓██ ▒ ██▒▒██▀ ██▌
@@ -223,7 +229,16 @@ pub fn boot_info_string() -> String {
         "HappyBoy🎈",
         "You Know, for Faster! ",
         "0xhappyboy",
-        "✅"
+        if status { "✅" } else { "⛔" }
+    ]);
+    table.add_row(row!["Address", "Port", "", "", "", ""]);
+    table.add_row(row![
+        SERVER_LISTENING_ADDR,
+        DEFAULT_SERVER_LISTENING_PORT,
+        "",
+        " ",
+        "",
+        ""
     ]);
     format!("{}\n{}", logo, table.to_string())
 }
