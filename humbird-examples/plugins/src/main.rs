@@ -1,7 +1,7 @@
 use humbird::{
     core::server::Server,
     protocol::http::{Request, Response},
-    router,
+    http_router,
 };
 
 fn test(req: Request, mut res: Response) -> Response {
@@ -11,7 +11,7 @@ fn test(req: Request, mut res: Response) -> Response {
 
 fn main() {
     // register router
-    router!(
+    http_router!(
         "/"=>test
     );
     Server::config_run("config-template.toml");

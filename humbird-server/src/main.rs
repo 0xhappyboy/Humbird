@@ -3,25 +3,22 @@ use cli::cli::Cli;
 use humbird::{
     core::server::Server,
     protocol::http::{Request, Response},
-    register_router_plugin,
+    router,
 };
 
 mod cli;
 
 fn test(req: Request, mut res: Response) -> Response {
+    res.set_body("西校区偶尔欧");
     res
 }
 
 fn main() {
     // cli
-    //let cli = Cli::parse();
-
-    register_router_plugin!(
+    let cli = Cli::parse();
+    router!(
         "/"=>test
     );
-
-    Server::config_run(
-        humbird::core::server::NetModel::EventPoll,
-        "config-template.toml",
-    );
+    // Server::config_run("config-template.toml");
+    Server::run();
 }

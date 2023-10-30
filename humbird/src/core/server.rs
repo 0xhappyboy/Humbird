@@ -1,5 +1,4 @@
 /// core network service module, providing core network functions
-use crate::protocol::http::Http;
 use chrono::Local;
 use lazy_static::lazy_static;
 use mio::{Events, Interest, Poll, Token};
@@ -132,33 +131,14 @@ impl Server {
                                             )
                                             .unwrap();
                                         connections.insert(token, connection);
-                                        match Http::new(&event, &connections, &token) {
-                                            Ok(_http) => {
-                                                continue;
-                                            }
-                                            Err(_) => {
-                                                continue;
-                                            }
-                                        }
+                                        // protocol handle
+                                        handle_protocol(&connections, &token);
                                     }
                                     // reuse
                                     token => {
                                         if connections.contains_key(&token) {
-                                            match connections.get(&token) {
-                                                Some(_stream) => {
-                                                    match Http::new(&event, &connections, &token) {
-                                                        Ok(_http) => {
-                                                            continue;
-                                                        }
-                                                        Err(_) => {
-                                                            continue;
-                                                        }
-                                                    }
-                                                }
-                                                None => {
-                                                    continue;
-                                                }
-                                            }
+                                            // protocol handle
+                                            handle_protocol(&connections, &token);
                                         }
                                     }
                                 }
@@ -204,6 +184,8 @@ pub fn init_log() {
 }
 
 use prettytable::{row, Table};
+
+use crate::protocol::protocol::handle_protocol;
 
 use super::config::load_config;
 

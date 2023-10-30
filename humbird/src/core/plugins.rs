@@ -11,7 +11,8 @@ lazy_static! {
 }
 
 /// macro for registering web routes,work before starting humbird service
-///
+/// only available for http protocol
+/// 
 /// Example
 /// ```rust
 /// // register plugin
@@ -24,7 +25,7 @@ lazy_static! {
 /// run!();
 /// ```
 #[macro_export]
-macro_rules! router {
+macro_rules! http_router {
     ($($path:expr => $process:expr),*) => {
         $(
             $crate::core::plugins::ROUTER_TABLE.lock().unwrap().insert($path.to_string(), $process);

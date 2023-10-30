@@ -15,6 +15,8 @@ use tracing::{error, instrument};
 
 use crate::core::{plugins::ROUTER_TABLE, server::ROOT_PATH};
 
+use super::protocol::BaseProtocol;
+
 /// http request process
 pub type HttpRequestProcess = fn(Request, Response) -> Response;
 
@@ -32,15 +34,12 @@ pub struct Http {
     pub response: Response,
 }
 
-impl Http {
+impl BaseProtocol<Http> for Http {
     #[instrument]
-    pub fn new(
-        event: &Event,
-        m: &HashMap<Token, TcpStream>,
-        token: &Token,
-    ) -> Result<Http, String> {
+    fn new(m: &HashMap<Token, TcpStream>, token: &Token) -> Result<Http, String> {
         match m.get(token) {
             Some(mut stream) => {
+
                 match Request::decode(stream) {
                     Ok(request) => {
                         let res = Response::new(&request);
@@ -48,9 +47,18 @@ impl Http {
                             request: request,
                             response: res,
                         };
-                        // exec plugin
-                        match http.router() {
-                            Ok(res) => http.response = res,
+
+
+                        // exec http router plugin
+                        match ROUTER_TABLE.lock() {
+                            Ok(t) => {
+                                if t.len() > 0 && t.contains_key(&http.request.path) {
+                                    http.response = t.get(&http.request.path).unwrap()(
+                                        http.request.clone(),
+                                        http.response.clone(),
+                                    );
+                                }
+                            }
                             Err(_) => {}
                         }
                         // reponse
@@ -70,25 +78,12 @@ impl Http {
         }
     }
     // is http protocol
-    pub fn is(c: String) -> bool {
+    fn is(stream: &mio::net::TcpStream) -> bool {
+        let mut r_buf = std::io::BufReader::new(stream);
+        let mut protocol_line = String::default();
+        let _ = r_buf.read_line(&mut protocol_line);
         let re = Regex::new(r"^(GET|HEAD|POST|PUT|DELETE|CONNECT|OPTIONS|TRACE)\s(([/0-9a-zA-Z.]+)?(\?[0-9a-zA-Z&=]+)?)\s(HTTP/1.0|HTTP/1.1|HTTP/2.0)\r\n$").unwrap();
-        re.is_match(&c)
-    }
-    /// execute plugin
-    fn router(&mut self) -> Result<Response, ()> {
-        match ROUTER_TABLE.lock() {
-            Ok(t) => {
-                if t.len() > 0 && t.contains_key(&self.request.path) {
-                    Ok(t.get(&self.request.path).unwrap()(
-                        self.request.clone(),
-                        self.response.clone(),
-                    ))
-                } else {
-                    Err(())
-                }
-            }
-            Err(_) => Err(()),
-        }
+        re.is_match(&protocol_line)
     }
 }
 
@@ -135,11 +130,14 @@ impl Request {
     #[instrument]
     pub fn decode(stream: &mio::net::TcpStream) -> Result<Self, String> {
         let mut r_buf = std::io::BufReader::new(stream);
+
         let mut protocol_line = String::default();
-        let _ = r_buf.read_line(&mut protocol_line);
+        let _ = r_buf.read_line(&mut protocol_line).unwrap();
+        println!("123123");
         if !Request::is(protocol_line.to_string()) {
             return Err("http request processing failed".to_string());
         }
+
         let items: Vec<&str> = protocol_line.split(" ").collect();
         let mut req_str_buf = String::default();
         let mut delimiter = Delimiter::HEAD;
